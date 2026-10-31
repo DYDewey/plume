@@ -10,6 +10,7 @@ App de bureau gratuite qui pilote le CLI `claude` (abonnement, pas de clé API).
 ## Contraintes
 - Windows 11 uniquement. Electron + TypeScript.
 - Zéro coût : uniquement le CLI `claude` déjà installé et connecté.
+- Secours Gemini (interrupteur dans la barre latérale, activé par défaut) : `claude` est lancé via `node <ccr>/cli.js mix cli --` (claude-code-router, clé Gemini gratuite) ; ccr est démarré tout seul s'il dort, et l'app retombe sur `claude` direct s'il ne répond pas (`src/main/router.ts`). Profil `mix` : Opus/Sonnet/Haiku = vrais modèles Claude ; secours sur 429 = gemini-3.8-flash → 3.7-flash → 3.5-flash → 3.5-flash-lite (les Pro n'ont pas de quota gratuit). Le flux de claude garde le nom du modèle demandé : le badge du haut lit le vrai modèle dans le journal ccr (`src/main/router-log.ts`, `%APPDATA%\claude-code-router\request-logs.sqlite`, en-tête `x-claude-code-session-id`).
 - Ne jamais modifier ni supprimer les fichiers d'historique de Claude Code.
 - Ignorer node_modules, dist, build et les fichiers générés.
 

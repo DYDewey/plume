@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { BridgeEvent } from '../shared/events';
 import type { ModelChoice } from '../shared/model';
 import { buildClaudeArgs } from './claude-args';
+import type { Launcher } from './router';
 import { createStreamParser } from './stream-parser';
 
 export interface SessionManagerOptions {
@@ -10,6 +11,8 @@ export interface SessionManagerOptions {
   command?: string;
   /** Arguments placés avant ceux de claude (sert aux tests avec un faux claude). */
   prefixArgs?: string[];
+  /** Choisi à chaque lancement, prioritaire sur command/prefixArgs (claude direct ou via le routeur ccr). */
+  launcher?: () => Launcher;
   /** Texte à ajouter au prompt système pour une session lancée dans `cwd` (instructions du projet), relu à chaque lancement. */
   promptFor?: (cwd: string) => string | null;
 }
@@ -37,11 +40,14 @@ export class SessionManager {
   }
 
   private launch(cwd: string, sessionId: string, model: ModelChoice | undefined): void {
-    const command = this.options.command ?? 'claude';
+    const { command, prefixArgs } = this.options.launcher?.() ?? {
+      command: this.options.command ?? 'claude',
+      prefixArgs: this.options.prefixArgs ?? [],
+    };
     const resume = this.withConversation.has(sessionId);
     const appendSystemPrompt = this.options.promptFor?.(cwd) ?? undefined;
     const args = [
-      ...(this.options.prefixArgs ?? []),
+      ...prefixArgs,
       ...buildClaudeArgs({ sessionId, resume, model, appendSystemPrompt }),
     ];
 

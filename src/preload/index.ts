@@ -25,6 +25,8 @@ const api: ClaudeApi = {
   getOrganize: () => ipcRenderer.invoke(IPC.organizeGet),
   setOrganize: (data) => ipcRenderer.invoke(IPC.organizeSet, data),
   pathsExist: (paths) => ipcRenderer.invoke(IPC.pathsExist, paths),
+  getRouter: () => ipcRenderer.invoke(IPC.routerGet),
+  setRouter: (enabled) => ipcRenderer.invoke(IPC.routerSet, enabled),
 };
 
 contextBridge.exposeInMainWorld('claude', api);

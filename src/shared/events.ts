@@ -8,6 +8,8 @@ export type BridgeEvent =
   | { type: 'commands'; sessionId: string; names: string[] }
   /** Modèle réellement utilisé par la session (ex. claude-opus-5-5), envoyé par claude au démarrage. */
   | { type: 'model'; sessionId: string; model: string }
+  /** Qui a vraiment répondu au dernier tour (journal du routeur ccr) : Claude, ou Gemini en secours. */
+  | { type: 'responder'; sessionId: string; provider: string; model: string }
   /** Jauges de l'abonnement, les mêmes pour toutes les sessions. */
   | { type: 'rate-limits'; sessionId: string; fiveHour?: LimitWindow; sevenDay?: LimitWindow }
   /** Taille du contexte de la session : `used` tokens sur `max`. */

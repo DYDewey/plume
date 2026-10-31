@@ -238,6 +238,9 @@ button.btn-danger:hover:not(:disabled) { background: var(--user); }
 /* Jauges d'usage (bas de la barre latérale) et % de contexte */
 .gauges { margin-top: auto; display: flex; flex-direction: column; gap: 8px; font-size: var(--fs-xs); }
 .gauges.stale { opacity: 0.55; }
+.responder-badge { flex-shrink: 0; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: var(--fs-xs); white-space: nowrap; }
+.responder-badge.fallback { color: var(--warn); border-color: var(--warn); }
+.router-toggle { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); cursor: pointer; }
 .gauge-bar { height: 5px; margin-top: 3px; background: var(--bg); border-radius: 3px; overflow: hidden; }
 .gauge-fill { height: 100%; }
 .gauge-fill.ok { background: var(--ok); }

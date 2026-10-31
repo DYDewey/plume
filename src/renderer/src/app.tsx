@@ -15,6 +15,7 @@ import { HistoryView, TopbarFolder } from './components/history-view';
 import { ProjectView, TopbarProject } from './components/project-view';
 import { ProjectsList } from './components/projects-list';
 import { ModelPicker } from './components/model-picker';
+import { ResponderBadge, RouterToggle } from './components/router-toggle';
 import { Sidebar } from './components/sidebar';
 import { ContextBadge } from './components/usage-gauges';
 import { readLastModel, writeLastModel } from './model-choice';
@@ -109,8 +110,16 @@ export function App() {
     window.claude.setOrganize(next).catch((err) => console.error('organize.json non enregistré', err));
   }
 
+  // Secours Gemini (routeur ccr) : activé par défaut, l'état réel est lu dans main.
+  const [router, setRouter] = useState(true);
+  function changeRouter(enabled: boolean) {
+    setRouter(enabled);
+    window.claude.setRouter(enabled).catch((err) => console.error('router.json non enregistré', err));
+  }
+
   useEffect(() => {
     refreshHistory();
+    window.claude.getRouter().then(setRouter, (err) => console.error('router.json illisible', err));
     window.claude.getOrganize().then(
       (data) => {
         setOrganize(data);
@@ -273,6 +282,7 @@ export function App() {
         sessions={state.sessions}
         activeId={viewing || shownProject ? null : state.activeId}
         limits={state.limits}
+        footer={<RouterToggle enabled={router} onChange={changeRouter} />}
         onNew={newSession}
         onSelect={(sessionId) => {
           setViewing(null);
@@ -342,6 +352,7 @@ export function App() {
               <TopbarFolder title={active.title} path={active.cwd} />
             </span>
             <TopbarProject organize={organize} cwd={active.cwd} />
+            <ResponderBadge responder={active.responder} />
             {active.context && (
               <span className="topbar-ctx">
                 Contexte : <ContextBadge context={active.context} />

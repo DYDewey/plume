@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -12,26 +13,67 @@ import { saveHandoff } from './handoff-store';
 import { createHistoryReader } from './history-reader';
 import { loadOrganize, saveOrganize } from './organize-store';
 import { pathsExist } from './paths-exist';
+import { createRouterChooser, DIRECT, loadRouterEnabled, routerCliPath, saveRouterEnabled, type Launcher } from './router';
 import { createSearchIndex } from './search-index';
+import { lastResponder, routerLogPath } from './router-log';
 import { SessionManager } from './session-manager';
+import type { BridgeEvent } from '../shared/events';
 
 /** Copie de organize.json tenue par main : les instructions des projets y sont lues à chaque lancement de claude. */
 let organize: OrganizeData = emptyOrganize();
 
 export function registerClaudeIpc(): SessionManager {
+  // Routeur ccr (secours Gemini) : choisi juste avant chaque lancement, claude direct s'il ne répond pas.
+  const userData = app.getPath('userData');
+  let routerEnabled = loadRouterEnabled(userData);
+  const cli = routerCliPath();
+  const chooseLauncher = createRouterChooser({
+    enabled: () => routerEnabled,
+    cli,
+    startGateway: () =>
+      spawn('node', [cli, 'start', '--daemon', '--no-open'], { detached: true, stdio: 'ignore', windowsHide: true })
+        .on('error', () => {}) // node absent : on restera en claude direct
+        .unref(),
+  });
+  let launcher: Launcher = DIRECT;
+  const prepareLauncher = async () => {
+    launcher = await chooseLauncher();
+  };
+  void prepareLauncher(); // dès l'ouverture : la 1re session n'attend pas le démarrage de ccr
+
+  const send = (event: BridgeEvent) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IPC.event, event);
+  };
+  const logPath = routerLogPath();
   const manager = new SessionManager(
     (event) => {
-      for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IPC.event, event);
+      send(event);
+      // Via le routeur, le flux garde le nom du modèle demandé : on lit dans le journal ccr qui a répondu.
+      // Petit délai : ccr écrit la ligne du journal juste après la fin du flux.
+      if (event.type === 'turn-end' && launcher !== DIRECT) {
+        setTimeout(() => {
+          const who = lastResponder(logPath, event.sessionId);
+          if (who) send({ type: 'responder', sessionId: event.sessionId, ...who });
+        }, 1000);
+      }
     },
-    { promptFor: (cwd) => promptForCwd(organize, cwd, existsSync) },
+    { promptFor: (cwd) => promptForCwd(organize, cwd, existsSync), launcher: () => launcher },
   );
 
-  ipcMain.handle(IPC.start, (_e, cwd: unknown, resumeId: unknown, model: unknown) => {
+  ipcMain.handle(IPC.start, async (_e, cwd: unknown, resumeId: unknown, model: unknown) => {
     // Le renderer n'est pas digne de confiance : on vérifie ce qu'il envoie.
     if (typeof cwd !== 'string' || !existsSync(cwd)) throw new Error(`Dossier invalide : ${String(cwd)}`);
     if (resumeId !== undefined && typeof resumeId !== 'string') throw new Error('resumeId invalide');
     if (model !== undefined && !isModelChoice(model)) throw new Error('Modèle invalide');
+    await prepareLauncher();
     return manager.start(cwd, resumeId, model);
+  });
+
+  ipcMain.handle(IPC.routerGet, () => routerEnabled);
+  ipcMain.handle(IPC.routerSet, (_e, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') throw new Error('Valeur invalide');
+    routerEnabled = enabled;
+    saveRouterEnabled(userData, enabled);
   });
 
   ipcMain.on(IPC.send, (_e, sessionId: unknown, text: unknown) => {
@@ -65,9 +107,10 @@ export function registerClaudeIpc(): SessionManager {
     if (typeof sessionId === 'string') manager.stop(sessionId);
   });
 
-  ipcMain.handle(IPC.setModel, (_e, sessionId: unknown, model: unknown) => {
+  ipcMain.handle(IPC.setModel, async (_e, sessionId: unknown, model: unknown) => {
     if (typeof sessionId !== 'string') throw new Error('sessionId invalide');
     if (model !== undefined && !isModelChoice(model)) throw new Error('Modèle invalide');
+    await prepareLauncher();
     manager.restart(sessionId, model);
   });
 

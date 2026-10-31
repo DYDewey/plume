@@ -36,6 +36,9 @@ export interface ClaudeApi {
   setOrganize(data: OrganizeData): Promise<void>;
   /** Pour chaque chemin : existe-t-il encore ? (dossier ou fichiers d'un projet) */
   pathsExist(paths: string[]): Promise<boolean[]>;
+  /** Interrupteur « secours Gemini » (routeur ccr) ; pris en compte au prochain lancement de session. */
+  getRouter(): Promise<boolean>;
+  setRouter(enabled: boolean): Promise<void>;
 }
 
 export const IPC = {
@@ -55,4 +58,6 @@ export const IPC = {
   organizeGet: 'organize:get',
   organizeSet: 'organize:set',
   pathsExist: 'paths:exist',
+  routerGet: 'router:get',
+  routerSet: 'router:set',
 } as const;

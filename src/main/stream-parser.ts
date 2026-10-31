@@ -1,4 +1,5 @@
 import type { BridgeEvent, LimitWindow } from '../shared/events';
+import { bareModel } from '../shared/model';
 
 export interface StreamParser {
   /** Reçoit un morceau de stdout, renvoie les événements des lignes complètes. */
@@ -87,7 +88,7 @@ function parseLine(line: string, sessionId: string, last: LastMessage): BridgeEv
       const names = msg.slash_commands.filter((n): n is string => typeof n === 'string');
       events.push({ type: 'commands', sessionId, names });
     }
-    if (typeof msg.model === 'string') events.push({ type: 'model', sessionId, model: msg.model });
+    if (typeof msg.model === 'string') events.push({ type: 'model', sessionId, model: bareModel(msg.model) });
     return events;
   }
 

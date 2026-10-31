@@ -20,6 +20,8 @@ export interface SessionState {
   model?: ModelChoice;
   /** Modèle réellement utilisé, lu au démarrage de claude (ex. claude-opus-5-5). */
   activeModel?: string;
+  /** Qui a vraiment répondu au dernier tour, d'après le routeur ccr (absent : claude direct). */
+  responder?: { provider: string; model: string };
   /** Prochain message proposé par claude, effacé dès qu'on envoie. */
   suggestion?: string;
 }
@@ -88,6 +90,8 @@ export function sessionsReducer(state: ChatState, action: ChatAction): ChatState
       return update(state, action.sessionId, () => ({ model: action.model, activeModel: undefined }));
     case 'model':
       return update(state, action.sessionId, () => ({ activeModel: action.model }));
+    case 'responder':
+      return update(state, action.sessionId, () => ({ responder: { provider: action.provider, model: action.model } }));
     case 'suggestion':
       return update(state, action.sessionId, () => ({ suggestion: action.text }));
     case 'text-delta':

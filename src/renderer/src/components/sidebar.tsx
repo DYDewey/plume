@@ -15,9 +15,11 @@ interface Props {
   onToggle: () => void;
   /** Placé entre les sessions en cours et les jauges (l'historique). */
   children?: ReactNode;
+  /** Sous les jauges (réglages). */
+  footer?: ReactNode;
 }
 
-export function Sidebar({ sessions, activeId, limits, onNew, onSelect, onClose, collapsed, onToggle, children }: Props) {
+export function Sidebar({ sessions, activeId, limits, onNew, onSelect, onClose, collapsed, onToggle, children, footer }: Props) {
   if (collapsed) {
     return (
       <nav className="sidebar collapsed">
@@ -70,6 +72,7 @@ export function Sidebar({ sessions, activeId, limits, onNew, onSelect, onClose, 
       </ul>
       {children}
       <UsageGauges limits={limits} />
+      {footer}
     </nav>
   );
 }
