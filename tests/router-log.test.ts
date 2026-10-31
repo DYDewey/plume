@@ -6,12 +6,12 @@ import { describe, expect, it } from 'vitest';
 import { lastResponder } from '../src/main/router-log';
 import { bareModel } from '../src/shared/model';
 
-function fakeLog(rows: Array<{ session: string; provider: string; response: string; resolved?: string; ok?: number }>) {
+function fakeLog(rows: Array<{ session: string; provider: string; response: string; resolved?: string; requested?: string; ok?: number }>) {
   const path = join(mkdtempSync(join(tmpdir(), 'ccr-log-')), 'request-logs.sqlite');
   const db = new DatabaseSync(path);
-  db.exec('create table request_logs (id integer primary key autoincrement, provider text, response_model text, resolved_model text, ok integer, request_headers text)');
-  const insert = db.prepare('insert into request_logs (provider, response_model, resolved_model, ok, request_headers) values (?, ?, ?, ?, ?)');
-  for (const r of rows) insert.run(r.provider, r.response, r.resolved ?? r.response, r.ok ?? 1, JSON.stringify({ 'x-claude-code-session-id': r.session }));
+  db.exec('create table request_logs (id integer primary key autoincrement, provider text, requested_model text, response_model text, resolved_model text, ok integer, request_headers text)');
+  const insert = db.prepare('insert into request_logs (provider, requested_model, response_model, resolved_model, ok, request_headers) values (?, ?, ?, ?, ?, ?)');
+  for (const r of rows) insert.run(r.provider, r.requested ?? '', r.response, r.resolved ?? r.response, r.ok ?? 1, JSON.stringify({ 'x-claude-code-session-id': r.session }));
   db.close();
   return path;
 }
@@ -36,6 +36,14 @@ describe('lastResponder', () => {
   it('prend resolved_model si le fournisseur n\'a pas renvoyé de nom', () => {
     const path = fakeLog([{ session: 'aaa', provider: 'Google Gemini', response: '', resolved: 'gemini-3.7-flash' }]);
     expect(lastResponder(path, 'aaa')?.model).toBe('gemini-3.7-flash');
+  });
+
+  it('prend resolved_model quand response_model répète encore le modèle demandé (journal pas encore à jour)', () => {
+    const path = fakeLog([{
+      session: 'aaa', provider: 'OpenRouter', requested: 'Claude Code API/claude-sonnet-5-5',
+      response: 'claude-sonnet-5-5', resolved: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+    }]);
+    expect(lastResponder(path, 'aaa')).toEqual({ provider: 'OpenRouter', model: 'nemotron-3-ultra-550b-a55b:free' });
   });
 
   it('renvoie null pour une session inconnue ou un journal absent', () => {

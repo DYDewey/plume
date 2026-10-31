@@ -26,12 +26,18 @@ export function lastResponder(dbPath: string, sessionId: string): Responder | nu
     db = new DatabaseSync(dbPath, { readOnly: true });
     const row = db
       .prepare(
-        `select provider, coalesce(nullif(response_model, ''), resolved_model) as model from request_logs
-         where ok = 1 and request_headers like ? order by id desc limit 1`,
+        `select provider, requested_model as requested, response_model as response, resolved_model as resolved
+         from request_logs where ok = 1 and request_headers like ? order by id desc limit 1`,
       )
-      .get(`%${sessionId}%`) as { provider?: unknown; model?: unknown } | undefined;
-    if (typeof row?.provider !== 'string' || typeof row.model !== 'string' || !row.model) return null;
-    return { provider: row.provider, model: bareModel(row.model) };
+      .get(`%${sessionId}%`) as Record<string, unknown> | undefined;
+    const text = (v: unknown) => (typeof v === 'string' ? bareModel(v) : '');
+    const requested = text(row?.requested);
+    const response = text(row?.response);
+    const resolved = text(row?.resolved);
+    // Juste après la réponse, ccr n'a parfois pas encore remplacé response_model : il répète le modèle demandé.
+    const model = response && response !== requested ? response : resolved || response;
+    if (typeof row?.provider !== 'string' || !model) return null;
+    return { provider: row.provider, model };
   } catch {
     return null; // journal absent, verrouillé ou format changé : pas de badge, rien de grave
   } finally {
