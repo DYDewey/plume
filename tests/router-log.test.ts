@@ -28,6 +28,11 @@ describe('lastResponder', () => {
     expect(lastResponder(path, 'bbb')).toEqual({ provider: 'Claude Code API', model: 'claude-opus-5-5' });
   });
 
+  it('enlève le préfixe que ccr ajoute parfois', () => {
+    const path = fakeLog([{ session: 'aaa', provider: 'Claude Code API', response: 'Claude Code API/claude-sonnet-5-5' }]);
+    expect(lastResponder(path, 'aaa')?.model).toBe('claude-sonnet-5-5');
+  });
+
   it('prend resolved_model si le fournisseur n\'a pas renvoyé de nom', () => {
     const path = fakeLog([{ session: 'aaa', provider: 'Google Gemini', response: '', resolved: 'gemini-3.7-flash' }]);
     expect(lastResponder(path, 'aaa')?.model).toBe('gemini-3.7-flash');

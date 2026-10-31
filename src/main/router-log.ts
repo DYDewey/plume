@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { bareModel } from '../shared/model';
 
 /**
  * Qui a vraiment répondu ? Le flux de claude garde le nom du modèle demandé (ex. claude-sonnet-5-5)
@@ -30,7 +31,7 @@ export function lastResponder(dbPath: string, sessionId: string): Responder | nu
       )
       .get(`%${sessionId}%`) as { provider?: unknown; model?: unknown } | undefined;
     if (typeof row?.provider !== 'string' || typeof row.model !== 'string' || !row.model) return null;
-    return { provider: row.provider, model: row.model };
+    return { provider: row.provider, model: bareModel(row.model) };
   } catch {
     return null; // journal absent, verrouillé ou format changé : pas de badge, rien de grave
   } finally {
