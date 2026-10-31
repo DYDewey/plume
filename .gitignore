@@ -12,3 +12,12 @@ release/
 *.key
 *.db
 *.sqlite*
+
+# Fichiers sensibles (jamais publiés)
+*.keystore
+*.jks
+credentials*
+secrets*
+id_rsa*
+*.p12
+*.pfx
