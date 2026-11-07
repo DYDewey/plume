@@ -5,6 +5,15 @@ import { HistoryView } from '../src/renderer/src/components/history-view';
 const base = { title: 'Module usage', path: 'C:\\dev\\proj' };
 
 describe('HistoryView', () => {
+  it('propose « Continuer », désactivé si le dossier a disparu', () => {
+    const ok = renderToStaticMarkup(<HistoryView title="t" items={[]} onContinue={() => {}} />);
+    expect(ok).toContain('Continuer');
+    expect(ok).not.toContain('disabled');
+    const gone = renderToStaticMarkup(<HistoryView title="t" items={[]} onContinue={() => {}} folderMissing />);
+    expect(gone).toContain('disabled');
+    expect(gone).toContain('Dossier introuvable');
+  });
+
   it('affiche les messages avec un bandeau Lecture seule, sans zone de saisie', () => {
     const html = renderToStaticMarkup(
       <HistoryView {...base} items={[{ kind: 'user', text: 'bonjour' }, { kind: 'assistant', text: '**salut**' }]} />,

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { lastResponder } from '../src/main/router-log';
+import { lastLimits, lastResponder } from '../src/main/router-log';
 import { bareModel } from '../src/shared/model';
 
 function fakeLog(rows: Array<{ session: string; provider: string; response: string; resolved?: string; requested?: string; ok?: number }>) {
@@ -15,6 +15,43 @@ function fakeLog(rows: Array<{ session: string; provider: string; response: stri
   db.close();
   return path;
 }
+
+function fakeHeaders(rows: Array<Record<string, string>>) {
+  const path = join(mkdtempSync(join(tmpdir(), 'ccr-log-')), 'request-logs.sqlite');
+  const db = new DatabaseSync(path);
+  db.exec('create table request_logs (id integer primary key autoincrement, response_headers text)');
+  const insert = db.prepare('insert into request_logs (response_headers) values (?)');
+  for (const r of rows) insert.run(JSON.stringify(r));
+  db.close();
+  return path;
+}
+
+const claudeHeaders = (five: string, seven: string) => ({
+  'anthropic-ratelimit-unified-5h-utilization': five,
+  'anthropic-ratelimit-unified-5h-reset': '1794081600',
+  'anthropic-ratelimit-unified-7d-utilization': seven,
+  'anthropic-ratelimit-unified-7d-reset': '1794326400',
+});
+
+describe('lastLimits', () => {
+  it('lit les jauges dans les en-têtes de la dernière réponse d\'Anthropic', () => {
+    const path = fakeHeaders([claudeHeaders('0.1', '0.2'), claudeHeaders('0.02', '0.26')]);
+    expect(lastLimits(path)).toEqual({
+      fiveHour: { utilization: 0.02, resetsAt: 1794081600 },
+      sevenDay: { utilization: 0.26, resetsAt: 1794326400 },
+    });
+  });
+
+  it('ignore les réponses de secours, qui n\'ont pas ces en-têtes', () => {
+    const path = fakeHeaders([claudeHeaders('0.5', '0.6'), { 'content-type': 'application/json' }]);
+    expect(lastLimits(path)?.fiveHour?.utilization).toBe(0.5);
+  });
+
+  it('renvoie null sans journal ni en-têtes', () => {
+    expect(lastLimits(fakeHeaders([{ a: 'b' }]))).toBeNull();
+    expect(lastLimits(join(tmpdir(), 'nexiste-pas', 'x.sqlite'))).toBeNull();
+  });
+});
 
 describe('lastResponder', () => {
   it('renvoie la dernière réponse réussie de la session', () => {

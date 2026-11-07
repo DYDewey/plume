@@ -123,6 +123,27 @@ describe('SessionManager', () => {
     manager.stopAll();
   });
 
+  it('une copie reste une copie si on change de modèle avant le 1er message, puis reprend son propre fichier', async () => {
+    const events: BridgeEvent[] = [];
+    const manager = new SessionManager((e) => events.push(e), fakeClaude);
+
+    const id = manager.start(tmpdir(), undefined, undefined, 'ancien');
+    manager.restart(id, 'sonnet');
+    manager.send(id, 'args?');
+    await waitFor(events, 'turn-end');
+    const text = events.filter((e) => e.type === 'text-delta').map((e) => (e as { text: string }).text).join('');
+    expect(text).toContain(`--resume ancien --fork-session --session-id ${id}`);
+
+    events.length = 0;
+    manager.restart(id, 'haiku');
+    manager.send(id, 'args?');
+    await waitFor(events, 'turn-end');
+    const after = events.filter((e) => e.type === 'text-delta').map((e) => (e as { text: string }).text).join('');
+    expect(after).toContain(`--resume ${id}`);
+    expect(after).not.toContain('--fork-session');
+    manager.stopAll();
+  });
+
   describe('instructions de projet (promptFor)', () => {
     const prompt = 'Instructions du projet « Été » :\nRéponds "court"\n\n- D:\\sujet.pdf';
 

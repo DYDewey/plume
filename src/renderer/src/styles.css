@@ -296,6 +296,7 @@ button:has(.lucide) { display: inline-flex; align-items: center; gap: 6px; }
 .topbar { min-height: 52px; }
 .topbar-title { font-size: var(--fs-md); font-weight: 600; }
 .topbar-folder { margin-left: 10px; font-weight: 400; font-size: var(--fs-sm); color: var(--muted); }
+button.btn-continue { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: var(--fs-xs); white-space: nowrap; }
 .readonly { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: var(--fs-xs); }
 
 /* Menu du modèle, dans la barre de saisie */

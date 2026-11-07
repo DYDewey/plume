@@ -3,7 +3,7 @@ import { IPC, type ClaudeApi } from '../shared/api';
 import type { BridgeEvent } from '../shared/events';
 
 const api: ClaudeApi = {
-  startSession: (cwd, opts) => ipcRenderer.invoke(IPC.start, cwd, opts?.resumeId, opts?.model),
+  startSession: (cwd, opts) => ipcRenderer.invoke(IPC.start, cwd, opts?.resumeId, opts?.model, opts?.forkFrom),
   sendMessage: (sessionId, text) => ipcRenderer.send(IPC.send, sessionId, text),
   pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),
   pickFiles: () => ipcRenderer.invoke(IPC.pickFiles),

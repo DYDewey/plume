@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildClaudeArgs } from '../src/main/claude-args';
+import { buildClaudeArgs, isSessionId } from '../src/main/claude-args';
 
 const base = [
   '-p',
@@ -12,6 +12,20 @@ const base = [
 ];
 
 describe('buildClaudeArgs', () => {
+  it('continue dans une copie : --fork-session, l\'original reste intact', () => {
+    expect(buildClaudeArgs({ sessionId: 'neuf', forkFrom: 'ancien' })).toEqual([...base, '--resume', 'ancien', '--fork-session', '--session-id', 'neuf']);
+  });
+
+  it('une copie déjà commencée reprend son propre fichier', () => {
+    expect(buildClaudeArgs({ sessionId: 'neuf', forkFrom: 'ancien', resume: true })).toEqual([...base, '--resume', 'neuf']);
+  });
+
+  it('n\'accepte comme session à continuer qu\'un vrai identifiant', () => {
+    expect(isSessionId('7510a2a2-decb-4c1b-b437-d5cdc2892484')).toBe(true);
+    expect(isSessionId('--dangerously-skip-permissions')).toBe(false);
+    expect(isSessionId(42)).toBe(false);
+  });
+
   it('nouvelle session : impose notre identifiant', () => {
     expect(buildClaudeArgs({ sessionId: 'abc' })).toEqual([...base, '--session-id', 'abc']);
   });

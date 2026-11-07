@@ -27,7 +27,7 @@ Elle garde tout l'historique consultable ; après une passation, la nouvelle ses
 | `files` | fichiers modifiés par Claude à chaque réponse, avec aperçu des changements | chat |
 | `export` | exporter une conversation en Markdown ou PDF | history |
 
-Ordre : `cli-bridge` ✅ → `chat` ✅ → `usage` ✅ → `history` ✅ → `handoff` ✅ → `model` ✅ → `attachments` ✅ → `packaging` ✅ → `ui` ✅ → `organize` ✅ → `projects` ✅ → `search` ✅ → `continue` → `permissions` → `shortcuts` → `prompts` → `auto-handoff` → `files` → `export`. (8 derniers ajoutés le 2026-10-25 ; `ui` ajouté le 2026-10-25 ; `usage` et `packaging` ajoutés le 2026-10-24, `model` aussi.)
+Ordre : `cli-bridge` ✅ → `chat` ✅ → `usage` ✅ → `history` ✅ → `handoff` ✅ → `model` ✅ → `attachments` ✅ → `packaging` ✅ → `ui` ✅ → `organize` ✅ → `projects` ✅ → `search` ✅ → `continue` ✅ → `permissions` → `shortcuts` → `prompts` → `auto-handoff` → `files` → `export`. (8 derniers ajoutés le 2026-10-25 ; `ui` ajouté le 2026-10-25 ; `usage` et `packaging` ajoutés le 2026-10-24, `model` aussi.)
 Chaque module a sa spec : `SPEC-<module>.md`. Ce fichier est l'index.
 
 ## Objectif

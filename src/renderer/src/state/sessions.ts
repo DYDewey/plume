@@ -44,7 +44,7 @@ export interface ChatState {
 
 export type ChatAction =
   | BridgeEvent
-  | { type: 'session-opened'; sessionId: string; cwd: string; model?: ModelChoice }
+  | { type: 'session-opened'; sessionId: string; cwd: string; model?: ModelChoice; title?: string; items?: ChatItem[] }
   | { type: 'model-changed'; sessionId: string; model: ModelChoice | undefined }
   | { type: 'session-closed'; sessionId: string }
   | { type: 'select'; sessionId: string }
@@ -58,8 +58,8 @@ const TITLE_MAX = 40;
 export function sessionsReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case 'session-opened': {
-      const title = action.cwd.split(/[\\/]/).filter(Boolean).pop() ?? action.cwd;
-      const session: SessionState = { id: action.sessionId, cwd: action.cwd, title, items: [], status: 'idle', unread: false, model: action.model };
+      const title = action.title ?? action.cwd.split(/[\\/]/).filter(Boolean).pop() ?? action.cwd;
+      const session: SessionState = { id: action.sessionId, cwd: action.cwd, title, items: action.items ?? [], status: 'idle', unread: false, model: action.model };
       return { ...state, sessions: [...state.sessions, session], activeId: action.sessionId };
     }
     case 'session-closed': {

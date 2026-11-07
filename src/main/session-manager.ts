@@ -25,6 +25,8 @@ export class SessionManager {
   private withConversation = new Set<string>();
   /** Sessions dont on a demandé l'interruption : leur prochain `result` est en erreur, c'est normal. */
   private interrupting = new Set<string>();
+  /** Session d'origine des copies (« Continuer ») : tant que rien n'est envoyé, un restart doit refaire la copie. */
+  private forks = new Map<string, string>();
 
   constructor(
     private emit: (event: BridgeEvent) => void,
@@ -32,27 +34,29 @@ export class SessionManager {
   ) {}
 
   /** Lance une session dans `cwd` et renvoie son identifiant. */
-  start(cwd: string, resumeId?: string, model?: ModelChoice): string {
+  start(cwd: string, resumeId?: string, model?: ModelChoice, forkFrom?: string): string {
     const sessionId = resumeId ?? randomUUID();
     if (resumeId) this.withConversation.add(sessionId);
+    if (forkFrom) this.forks.set(sessionId, forkFrom);
     this.launch(cwd, sessionId, model);
     return sessionId;
   }
 
   private launch(cwd: string, sessionId: string, model: ModelChoice | undefined): void {
-    const { command, prefixArgs } = this.options.launcher?.() ?? {
+    const { command, prefixArgs, env: launcherEnv } = this.options.launcher?.() ?? {
       command: this.options.command ?? 'claude',
       prefixArgs: this.options.prefixArgs ?? [],
+      env: undefined,
     };
     const resume = this.withConversation.has(sessionId);
     const appendSystemPrompt = this.options.promptFor?.(cwd) ?? undefined;
     const args = [
       ...prefixArgs,
-      ...buildClaudeArgs({ sessionId, resume, model, appendSystemPrompt }),
+      ...buildClaudeArgs({ sessionId, resume, forkFrom: this.forks.get(sessionId), model, appendSystemPrompt }),
     ];
 
     // Sans cette variable, claude -p ignore --prompt-suggestions (vérifié avec la v2.1.310).
-    const env = { ...process.env, CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: '1' };
+    const env = { ...process.env, CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: '1', ...launcherEnv };
     const child = spawn(command, args, { cwd, env, windowsHide: true });
     this.sessions.set(sessionId, child);
     this.cwds.set(sessionId, cwd);

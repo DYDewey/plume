@@ -52,6 +52,9 @@ interface Viewing {
   error?: string;
   /** Message trouvé par la recherche dans le contenu. */
   focusIndex?: number;
+  id: string;
+  /** Le dossier de la session n'existe plus (vérifié à l'ouverture). */
+  folderMissing?: boolean;
 }
 
 function isSavedLimits(value: unknown): value is Limits {
@@ -205,14 +208,34 @@ export function App() {
     const title = project?.sessions.find((s) => s.id === id)?.title ?? id;
     const key = `${folder}/${id}`;
     setProjectId(null);
-    setViewing({ key, title, path: project?.path, focusIndex });
+    setViewing({ key, id, title, path: project?.path, focusIndex, folderMissing: !project?.path });
     // Si on a cliqué sur une autre session entre-temps, on ignore la réponse arrivée en retard.
-    const done = (patch: Pick<Viewing, 'items' | 'error'>) =>
+    const done = (patch: Partial<Pick<Viewing, 'items' | 'error' | 'folderMissing'>>) =>
       setViewing((v) => (v?.key === key ? { ...v, ...patch } : v));
     window.claude.readHistory(folder, id).then(
       (items) => done({ items }),
       (err: unknown) => done({ error: `Lecture impossible : ${err instanceof Error ? err.message : String(err)}` }),
     );
+    if (project?.path) {
+      window.claude.pathsExist([project.path]).then(
+        ([exists]) => done({ folderMissing: !exists }),
+        (err) => console.error('vérification du dossier impossible', err),
+      );
+    }
+  }
+
+  // La suite part dans une copie : l'ancien .jsonl n'est jamais touché, les anciens messages restent affichés.
+  async function continueViewing() {
+    if (!viewing?.path || !viewing.items) return;
+    const { id, key, path: cwd, items } = viewing;
+    const title = displayTitle(viewing, organize.sessions[key]);
+    try {
+      const sessionId = await window.claude.startSession(cwd, { model: lastModel, forkFrom: id });
+      setViewing(null);
+      dispatch({ type: 'session-opened', sessionId, cwd, model: lastModel, title, items });
+    } catch (err) {
+      setViewing((v) => (v?.key === key ? { ...v, error: `Impossible de continuer : ${err instanceof Error ? err.message : String(err)}` } : v));
+    }
   }
 
   function close(sessionId: string) {
@@ -343,6 +366,8 @@ export function App() {
           favorite={!!organize.sessions[viewing.key]?.favorite}
           onToggleFavorite={() => updateOrganize(toggleFavorite(organize, viewing.key))}
           onRename={(title) => updateOrganize(renameSession(organize, viewing.key, title))}
+          onContinue={() => void continueViewing()}
+          folderMissing={viewing.folderMissing}
         />
       ) : active ? (
         <main className="session">

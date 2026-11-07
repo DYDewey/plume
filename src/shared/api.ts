@@ -7,7 +7,7 @@ import type { SearchHit } from './search';
 
 // API exposée au renderer sous `window.claude` par le preload.
 export interface ClaudeApi {
-  startSession(cwd: string, opts?: { resumeId?: string; model?: ModelChoice }): Promise<string>;
+  startSession(cwd: string, opts?: { resumeId?: string; model?: ModelChoice; forkFrom?: string }): Promise<string>;
   sendMessage(sessionId: string, text: string): void;
   /** Ouvre la boîte de dialogue Windows ; renvoie le dossier choisi, ou null si annulé. */
   pickFolder(): Promise<string | null>;

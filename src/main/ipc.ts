@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { IPC } from '../shared/api';
 import { isModelChoice } from '../shared/model';
+import { isSessionId } from './claude-args';
 import { validQuery } from '../shared/search';
 import { emptyOrganize, parseOrganize, type OrganizeData } from '../shared/organize';
 import { promptForCwd } from '../shared/projects';
@@ -13,9 +14,9 @@ import { saveHandoff } from './handoff-store';
 import { createHistoryReader } from './history-reader';
 import { loadOrganize, saveOrganize } from './organize-store';
 import { pathsExist } from './paths-exist';
-import { createRouterChooser, DIRECT, loadRouterEnabled, routerCliPath, saveRouterEnabled, type Launcher } from './router';
+import { createRouterChooser, DIRECT, loadRouterEnabled, readRouterToken, routerCliPath, saveRouterEnabled, type Launcher } from './router';
 import { createSearchIndex } from './search-index';
-import { lastResponder, routerLogPath } from './router-log';
+import { lastLimits, lastResponder, routerLogPath } from './router-log';
 import { SessionManager } from './session-manager';
 import type { BridgeEvent } from '../shared/events';
 
@@ -29,7 +30,7 @@ export function registerClaudeIpc(): SessionManager {
   const cli = routerCliPath();
   const chooseLauncher = createRouterChooser({
     enabled: () => routerEnabled,
-    cli,
+    token: () => readRouterToken(),
     startGateway: () =>
       spawn('node', [cli, 'start', '--daemon', '--no-open'], { detached: true, stdio: 'ignore', windowsHide: true })
         .on('error', () => {}) // node absent : on restera en claude direct
@@ -48,25 +49,28 @@ export function registerClaudeIpc(): SessionManager {
   const manager = new SessionManager(
     (event) => {
       send(event);
-      // Via le routeur, le flux garde le nom du modèle demandé : on lit dans le journal ccr qui a répondu.
+      // Via le routeur, le flux garde le nom du modèle demandé et n'a plus les jauges : on lit tout ça dans le journal ccr.
       // Petit délai : ccr écrit la ligne du journal juste après la fin du flux.
       if (event.type === 'turn-end' && launcher !== DIRECT) {
         setTimeout(() => {
           const who = lastResponder(logPath, event.sessionId);
           if (who) send({ type: 'responder', sessionId: event.sessionId, ...who });
+          const limits = lastLimits(logPath);
+          if (limits) send({ type: 'rate-limits', sessionId: event.sessionId, ...limits });
         }, 1000);
       }
     },
     { promptFor: (cwd) => promptForCwd(organize, cwd, existsSync), launcher: () => launcher },
   );
 
-  ipcMain.handle(IPC.start, async (_e, cwd: unknown, resumeId: unknown, model: unknown) => {
+  ipcMain.handle(IPC.start, async (_e, cwd: unknown, resumeId: unknown, model: unknown, forkFrom: unknown) => {
     // Le renderer n'est pas digne de confiance : on vérifie ce qu'il envoie.
     if (typeof cwd !== 'string' || !existsSync(cwd)) throw new Error(`Dossier invalide : ${String(cwd)}`);
     if (resumeId !== undefined && typeof resumeId !== 'string') throw new Error('resumeId invalide');
     if (model !== undefined && !isModelChoice(model)) throw new Error('Modèle invalide');
+    if (forkFrom !== undefined && !isSessionId(forkFrom)) throw new Error('Session à continuer invalide');
     await prepareLauncher();
-    return manager.start(cwd, resumeId, model);
+    return manager.start(cwd, resumeId, model, forkFrom);
   });
 
   ipcMain.handle(IPC.routerGet, () => routerEnabled);
