@@ -25,6 +25,8 @@ export function buildClaudeArgs({ sessionId, resume, forkFrom, model, appendSyst
     '--verbose',
     '--include-partial-messages',
     '--permission-mode', 'acceptEdits',
+    // Ce qui serait refusé en silence nous est demandé (control_request sur stdout, cf. session-manager).
+    '--permission-prompt-tool', 'stdio',
     // Suggestion du prochain message après chaque tour (il faut aussi la variable d'env, cf. session-manager).
     '--prompt-suggestions', 'true',
     ...(model ? ['--model', model] : []),

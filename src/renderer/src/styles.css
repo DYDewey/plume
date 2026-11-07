@@ -290,6 +290,12 @@ button:has(.lucide) { display: inline-flex; align-items: center; gap: 6px; }
 .sidebar .indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .sidebar .indicator.running { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 .sidebar .indicator.unread { border: 1.5px solid var(--accent); }
+.sidebar .indicator.asking { background: var(--warn); }
+.permission-card { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--warn); border-radius: 10px; }
+.permission-title { display: flex; align-items: center; gap: 6px; }
+.permission-target { margin: 0; padding: 8px; background: var(--panel); border-radius: 6px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-code); font-size: var(--fs-sm); }
+.permission-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.permission-rule { font-size: var(--fs-xs); overflow-wrap: anywhere; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 
 /* En-têtes */

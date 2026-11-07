@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { IPC } from '../shared/api';
+import { isPermissionDecision } from '../shared/events';
 import { isModelChoice } from '../shared/model';
 import { isSessionId } from './claude-args';
 import { validQuery } from '../shared/search';
@@ -105,6 +106,12 @@ export function registerClaudeIpc(): SessionManager {
 
   ipcMain.on(IPC.interrupt,(_e, sessionId: unknown) => {
     if (typeof sessionId === 'string') manager.interrupt(sessionId);
+  });
+
+  ipcMain.on(IPC.permission, (_e, sessionId: unknown, requestId: unknown, decision: unknown) => {
+    if (typeof sessionId === 'string' && typeof requestId === 'string' && isPermissionDecision(decision)) {
+      manager.answerPermission(sessionId, requestId, decision);
+    }
   });
 
   ipcMain.on(IPC.stop,(_e, sessionId: unknown) => {

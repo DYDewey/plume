@@ -1,4 +1,4 @@
-import type { BridgeEvent, LimitWindow } from '../shared/events';
+import type { BridgeEvent, LimitWindow, PermissionSuggestion } from '../shared/events';
 import { bareModel } from '../shared/model';
 
 export interface StreamParser {
@@ -92,8 +92,41 @@ function parseLine(line: string, sessionId: string, last: LastMessage): BridgeEv
     return events;
   }
 
+  if (msg.type === 'control_request') {
+    const request = msg.request as Record<string, unknown> | undefined;
+    if (request?.subtype !== 'can_use_tool' || typeof msg.request_id !== 'string' || typeof request.tool_name !== 'string') return [];
+    const input = request.input && typeof request.input === 'object' ? (request.input as Record<string, unknown>) : {};
+    return [{
+      type: 'permission-request',
+      sessionId,
+      requestId: msg.request_id,
+      toolName: request.tool_name,
+      input,
+      ...(typeof request.description === 'string' && { description: request.description }),
+      suggestions: localRules(request.permission_suggestions),
+      ...(request.requires_user_interaction === true && { interactive: true }),
+    }];
+  }
+
+  if (msg.type === 'control_cancel_request' && typeof msg.request_id === 'string') {
+    return [{ type: 'permission-resolved', sessionId, requestId: msg.request_id, decision: 'deny' }];
+  }
+
   // Autres system/*… : pas utiles au renderer pour l'instant.
   return [];
+}
+
+/**
+ * Seules les règles d'autorisation sont gardées, et toujours pour le dossier de travail :
+ * « Toujours autoriser » ne doit jamais toucher ~/.claude/settings.json ni changer de mode.
+ */
+function localRules(raw: unknown): PermissionSuggestion[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((s: { type?: unknown; behavior?: unknown; rules?: unknown }) => {
+    if (s?.type !== 'addRules' || s.behavior !== 'allow' || !Array.isArray(s.rules)) return [];
+    const rules = s.rules.filter((r): r is PermissionSuggestion['rules'][number] => typeof r?.toolName === 'string');
+    return rules.length ? [{ type: 'addRules' as const, behavior: 'allow' as const, destination: 'localSettings' as const, rules }] : [];
+  });
 }
 
 function limitWindow(raw: unknown): LimitWindow | undefined {

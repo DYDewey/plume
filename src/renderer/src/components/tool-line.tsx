@@ -18,17 +18,26 @@ const ICONS: Record<string, LucideIcon> = {
 const TARGET_KEYS = ['file_path', 'path', 'command', 'pattern', 'url', 'query', 'skill', 'description'];
 const TARGET_MAX = 80;
 
-export function toolTarget(input: Record<string, unknown>): string {
+/** Sur quoi l'outil agit, en entier : une demande de permission doit tout montrer. */
+export function fullToolTarget(input: Record<string, unknown>): string {
   const key = TARGET_KEYS.find((k) => typeof input[k] === 'string');
-  return key ? (input[key] as string).slice(0, TARGET_MAX) : '';
+  return key ? (input[key] as string) : '';
+}
+
+export function toolTarget(input: Record<string, unknown>): string {
+  return fullToolTarget(input).slice(0, TARGET_MAX);
+}
+
+export function ToolIcon({ name }: { name: string }) {
+  const Icon = ICONS[name] ?? Wrench;
+  return <Icon size={14} aria-hidden />;
 }
 
 export function ToolLine({ name, input }: { name: string; input: Record<string, unknown> }) {
-  const Icon = ICONS[name] ?? Wrench;
   return (
     <details className="msg msg-tool">
       <summary>
-        <Icon size={14} aria-hidden /> <strong>{name}</strong> <span className="tool-target">{toolTarget(input)}</span>
+        <ToolIcon name={name} /> <strong>{name}</strong> <span className="tool-target">{toolTarget(input)}</span>
       </summary>
       <pre>{JSON.stringify(input, null, 2)}</pre>
     </details>

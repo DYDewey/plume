@@ -385,7 +385,11 @@ export function App() {
             )}
             <HandoffButton session={active} phase={phase.phase} onClick={startHandoff} />
           </header>
-          <ChatView items={active.items} running={active.status === 'running'} />
+          <ChatView
+            items={active.items}
+            running={active.status === 'running'}
+            onPermission={(requestId, decision) => window.claude.answerPermission(active.id, requestId, decision)}
+          />
           <Composer running={active.status === 'running'} onSend={send} onStop={stop} onPickFiles={() => window.claude.pickFiles()} pathForFile={(f) => window.claude.pathForFile(f)}
             onSavePasted={(bytes, ext) => window.claude.savePastedImage(bytes, ext)} commands={state.commands} suggestion={active.suggestion}
             tools={

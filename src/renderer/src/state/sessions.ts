@@ -94,6 +94,24 @@ export function sessionsReducer(state: ChatState, action: ChatAction): ChatState
       return update(state, action.sessionId, () => ({ responder: { provider: action.provider, model: action.model } }));
     case 'suggestion':
       return update(state, action.sessionId, () => ({ suggestion: action.text }));
+    case 'permission-request':
+      return fromBridge(state, action.sessionId, (s) => ({
+        items: [
+          ...s.items,
+          {
+            kind: 'permission',
+            requestId: action.requestId,
+            toolName: action.toolName,
+            input: action.input,
+            description: action.description,
+            rules: action.suggestions.flatMap((p) => p.rules.map((r) => (r.ruleContent ? `${r.toolName}(${r.ruleContent})` : r.toolName))),
+          },
+        ],
+      }));
+    case 'permission-resolved':
+      return update(state, action.sessionId, (s) => ({
+        items: s.items.map((i) => (i.kind === 'permission' && i.requestId === action.requestId ? { ...i, decision: action.decision } : i)),
+      }));
     case 'text-delta':
       return fromBridge(state, action.sessionId, (s) => {
         const last = s.items.at(-1);
@@ -115,6 +133,11 @@ export function sessionsReducer(state: ChatState, action: ChatAction): ChatState
         status: 'idle',
       }));
   }
+}
+
+/** Une carte de permission attend une réponse : pastille sur l'onglet. */
+export function hasPendingPermission(session: Pick<SessionState, 'items'>): boolean {
+  return session.items.some((i) => i.kind === 'permission' && !i.decision);
 }
 
 type Patch = (s: SessionState) => Partial<SessionState>;

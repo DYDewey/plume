@@ -1,7 +1,9 @@
 import { CircleStop, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { ChatItem } from '../../../shared/chat-item';
+import type { PermissionDecision } from '../../../shared/events';
 import { Markdown } from './message';
+import { PermissionCard } from './permission-card';
 import { ToolLine } from './tool-line';
 
 interface Props {
@@ -9,9 +11,10 @@ interface Props {
   running: boolean;
   /** Message à montrer et surligner (résultat de recherche) ; sinon on descend en bas. */
   focusIndex?: number;
+  onPermission?: (requestId: string, decision: PermissionDecision) => void;
 }
 
-export function ChatView({ items, running, focusIndex }: Props) {
+export function ChatView({ items, running, focusIndex, onPermission }: Props) {
   const bottom = useRef<HTMLDivElement>(null);
   const found = useRef<HTMLDivElement>(null);
   // Claude n'a encore rien écrit depuis le dernier message : on le dit, le démarrage prend ~35 s.
@@ -42,6 +45,8 @@ export function ChatView({ items, running, focusIndex }: Props) {
             );
           case 'tool':
             return <ToolLine key={i} name={item.name} input={item.input} />;
+          case 'permission':
+            return <PermissionCard key={item.requestId} item={item} onAnswer={onPermission} />;
           case 'stopped':
             return <div key={i} className="msg muted"><CircleStop size={14} aria-hidden /> Réponse arrêtée</div>;
           case 'error':

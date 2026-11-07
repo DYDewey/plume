@@ -1,6 +1,6 @@
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import type { BridgeEvent } from '../shared/events';
+import type { BridgeEvent, PermissionDecision, PermissionSuggestion } from '../shared/events';
 import type { ModelChoice } from '../shared/model';
 import { buildClaudeArgs } from './claude-args';
 import type { Launcher } from './router';
@@ -17,6 +17,15 @@ export interface SessionManagerOptions {
   promptFor?: (cwd: string) => string | null;
 }
 
+const DENIED = "Refusé par l'utilisateur";
+const ASK_IN_CHAT = "Cette interface ne sait pas afficher cet outil. Pose ta question directement dans ta réponse : l'utilisateur répondra par un message.";
+
+/** Copie côté main d'une demande : la réponse n'utilise jamais ce que le renderer enverrait. */
+interface PendingPermission {
+  input: Record<string, unknown>;
+  suggestions: PermissionSuggestion[];
+}
+
 export class SessionManager {
   private sessions = new Map<string, ChildProcessWithoutNullStreams>();
   /** Dossier de travail de chaque session, pour pouvoir la relancer (changement de modèle). */
@@ -27,6 +36,8 @@ export class SessionManager {
   private interrupting = new Set<string>();
   /** Session d'origine des copies (« Continuer ») : tant que rien n'est envoyé, un restart doit refaire la copie. */
   private forks = new Map<string, string>();
+  /** Demandes de permission en attente : session → requestId → demande. */
+  private permissions = new Map<string, Map<string, PendingPermission>>();
 
   constructor(
     private emit: (event: BridgeEvent) => void,
@@ -68,6 +79,15 @@ export class SessionManager {
     child.stdout.on('data', (chunk: string) => {
       if (!isCurrent()) return;
       for (const event of parser.push(chunk)) {
+        if (event.type === 'permission-request') {
+          if (event.interactive) {
+            writePermission(child, event.requestId, { behavior: 'deny', message: ASK_IN_CHAT });
+            continue;
+          }
+          this.pendingOf(sessionId).set(event.requestId, { input: event.input, suggestions: event.suggestions });
+        } else if (event.type === 'permission-resolved' && !this.permissions.get(sessionId)?.delete(event.requestId)) {
+          continue;
+        }
         if (this.interrupting.has(sessionId)) {
           if (event.type === 'error') continue;
           if (event.type === 'turn-end') this.interrupting.delete(sessionId);
@@ -97,6 +117,7 @@ export class SessionManager {
       // Une session arrêtée volontairement (ou relancée) n'est plus associée à ce processus.
       if (!isCurrent()) return;
       this.sessions.delete(sessionId);
+      this.clearPermissions(sessionId);
       if (code !== 0) {
         this.emit({ type: 'error', sessionId, message: `claude s'est arrêté (code ${code}). ${stderrTail.trim()}` });
       }
@@ -114,10 +135,45 @@ export class SessionManager {
     this.withConversation.add(sessionId);
   }
 
+  /** Répond à une demande de permission ; une demande inconnue ou déjà répondue est ignorée. */
+  answerPermission(sessionId: string, requestId: string, decision: PermissionDecision): void {
+    const child = this.sessions.get(sessionId);
+    const pending = this.permissions.get(sessionId)?.get(requestId);
+    if (!child || !pending) return;
+    this.permissions.get(sessionId)?.delete(requestId);
+    writePermission(
+      child,
+      requestId,
+      decision === 'deny'
+        ? { behavior: 'deny', message: DENIED }
+        : {
+            behavior: 'allow',
+            updatedInput: pending.input,
+            ...(decision === 'always' && pending.suggestions.length > 0 && { updatedPermissions: pending.suggestions }),
+          },
+    );
+    this.emit({ type: 'permission-resolved', sessionId, requestId, decision });
+  }
+
+  private pendingOf(sessionId: string): Map<string, PendingPermission> {
+    let pending = this.permissions.get(sessionId);
+    if (!pending) this.permissions.set(sessionId, (pending = new Map()));
+    return pending;
+  }
+
+  /** Oublie les demandes en attente (le processus est arrêté) : les cartes passent à « refusé ». */
+  private clearPermissions(sessionId: string): void {
+    for (const requestId of this.permissions.get(sessionId)?.keys() ?? []) {
+      this.emit({ type: 'permission-resolved', sessionId, requestId, decision: 'deny' });
+    }
+    this.permissions.delete(sessionId);
+  }
+
   /** Arrête la réponse en cours ; la session reste ouverte et se souvient du début. */
   interrupt(sessionId: string): void {
     const child = this.sessions.get(sessionId);
     if (!child) return;
+    for (const requestId of [...(this.permissions.get(sessionId)?.keys() ?? [])]) this.answerPermission(sessionId, requestId, 'deny');
     this.interrupting.add(sessionId);
     const line = JSON.stringify({ type: 'control_request', request_id: randomUUID(), request: { subtype: 'interrupt' } });
     child.stdin.write(line + '\n');
@@ -129,6 +185,7 @@ export class SessionManager {
     this.sessions.delete(sessionId);
     this.cwds.delete(sessionId);
     this.interrupting.delete(sessionId);
+    this.clearPermissions(sessionId);
     killTree(child);
   }
 
@@ -153,6 +210,10 @@ export class SessionManager {
   has(sessionId: string): boolean {
     return this.sessions.has(sessionId);
   }
+}
+
+function writePermission(child: ChildProcessWithoutNullStreams, requestId: string, response: Record<string, unknown>): void {
+  child.stdin.write(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: requestId, response } }) + '\n');
 }
 
 function killTree(child: ChildProcessWithoutNullStreams): void {

@@ -36,3 +36,8 @@ Quand Claude veut faire une action qui demande une permission (commande Bash, ac
 ## Décisions (28/10/2026)
 1. « Toujours autoriser » : règle écrite par le CLI dans `.claude/settings.local.json` du dossier de travail (jamais `~/.claude/settings.json`).
 2. Mode `acceptEdits` gardé ; on ajoute seulement `--permission-prompt-tool stdio`.
+
+## Écarts à l'implémentation (07/11/2026, CLI 2.1.319)
+- Saisie désactivée pendant qu'une carte attend, comme pendant toute réponse (`running`) : « Stop » et les boutons de la carte restent actifs. Le point 2 du fonctionnement n'est donc pas appliqué pour la saisie.
+- Les outils qui attendent une vraie réponse (`requires_user_interaction`, ex. `AskUserQuestion`) n'ont pas de carte : main répond à Claude de poser sa question dans le chat.
+- Toute règle proposée par le CLI est ramenée à `localSettings` ; les suggestions qui ne sont pas des règles d'autorisation (`setMode`…) sont ignorées.

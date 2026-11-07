@@ -1,5 +1,5 @@
 import type { ChatItem } from './chat-item';
-import type { BridgeEvent } from './events';
+import type { BridgeEvent, PermissionDecision } from './events';
 import type { HistoryProject } from './history';
 import type { ModelChoice } from './model';
 import type { OrganizeData } from './organize';
@@ -17,6 +17,8 @@ export interface ClaudeApi {
   pathForFile(file: File): string;
   /** Enregistre une image collée dans %APPDATA%/mon-claude/attachments/ ; renvoie son chemin. */
   savePastedImage(bytes: Uint8Array, ext: string): Promise<string>;
+  /** Répond à une demande de permission de claude. */
+  answerPermission(sessionId: string, requestId: string, decision: PermissionDecision): void;
   /** Arrête la réponse en cours sans fermer la session. */
   interrupt(sessionId: string): void;
   stopSession(sessionId: string): void;
@@ -45,6 +47,7 @@ export const IPC = {
   start: 'claude:start',
   send: 'claude:send',
   interrupt: 'claude:interrupt',
+  permission: 'claude:permission',
   pickFolder: 'claude:pick-folder',
   pickFiles: 'files:pick',
   savePasted: 'files:save-pasted',

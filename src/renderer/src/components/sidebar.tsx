@@ -1,6 +1,6 @@
 import { PanelLeft, Plus, X } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { Limits, SessionState } from '../state/sessions';
+import { hasPendingPermission, type Limits, type SessionState } from '../state/sessions';
 import { ContextBadge, UsageGauges } from './usage-gauges';
 
 interface Props {
@@ -52,7 +52,10 @@ export function Sidebar({ sessions, activeId, limits, onNew, onSelect, onClose, 
             title={s.cwd}
           >
             {/* Point plein qui pulse = Claude répond ; anneau = réponse arrivée pendant que la session était cachée. */}
-            <span className={`indicator ${s.status === 'running' ? 'running' : s.unread ? 'unread' : ''}`} />
+            <span
+              className={`indicator ${hasPendingPermission(s) ? 'asking' : s.status === 'running' ? 'running' : s.unread ? 'unread' : ''}`}
+              title={hasPendingPermission(s) ? 'Claude attend ta permission' : undefined}
+            />
             <span className="sidebar-title">{s.title}</span>
             <ContextBadge context={s.context} />
             <button

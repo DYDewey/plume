@@ -15,6 +15,34 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     out({ type: 'result', subtype: 'error_during_execution', is_error: true, total_cost_usd: 0 });
     return;
   }
+  // Réponse à une demande de permission : renvoyée telle quelle en texte, pour que le test la lise.
+  if (msg.type === 'control_response') {
+    const text = 'réponse:' + JSON.stringify(msg.response);
+    out({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text } } });
+    out({ type: 'result', subtype: 'success', is_error: false, result: text, total_cost_usd: 0 });
+    return;
+  }
+  if (msg.message?.content === 'permission?' || msg.message?.content === 'question?') {
+    const question = msg.message.content === 'question?';
+    out({
+      type: 'control_request',
+      request_id: 'req-1',
+      request: {
+        subtype: 'can_use_tool',
+        tool_name: question ? 'AskUserQuestion' : 'Bash',
+        input: { command: 'curl example.com' },
+        description: 'Télécharger',
+        permission_suggestions: [{ type: 'addRules', rules: [{ toolName: 'Bash', ruleContent: 'curl example.com' }], behavior: 'allow', destination: 'userSettings' }],
+        ...(question && { requires_user_interaction: true }),
+      },
+    });
+    return;
+  }
+  if (msg.message?.content === 'annule?') {
+    out({ type: 'control_cancel_request', request_id: 'req-1' });
+    out({ type: 'result', subtype: 'success', is_error: false, result: 'fin', total_cost_usd: 0 });
+    return;
+  }
   if (msg.message?.content === 'args?' || msg.message?.content === 'args-json?') {
     const args = process.argv.slice(2);
     const text = msg.message.content === 'args?' ? args.join(' ') : JSON.stringify(args);

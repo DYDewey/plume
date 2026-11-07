@@ -144,6 +144,106 @@ describe('SessionManager', () => {
     manager.stopAll();
   });
 
+  describe('permissions', () => {
+    function askedManager() {
+      const events: BridgeEvent[] = [];
+      const manager = new SessionManager((e) => events.push(e), fakeClaude);
+      const id = manager.start(tmpdir());
+      return { events, manager, id };
+    }
+    const reply = (events: BridgeEvent[]) => events.filter((e) => e.type === 'text-delta').map((e) => (e as { text: string }).text).join('');
+
+    it('Autoriser renvoie la commande gardée par main, sans règle', async () => {
+      const { events, manager, id } = askedManager();
+      manager.send(id, 'permission?');
+      await waitFor(events, 'permission-request');
+      manager.answerPermission(id, 'req-1', 'allow');
+      await waitFor(events, 'turn-end');
+      const text = reply(events);
+      expect(text).toContain('"behavior":"allow"');
+      expect(text).toContain('"updatedInput":{"command":"curl example.com"}');
+      expect(text).not.toContain('updatedPermissions');
+      expect(events).toContainEqual({ type: 'permission-resolved', sessionId: id, requestId: 'req-1', decision: 'allow' });
+      manager.stopAll();
+    });
+
+    it('Toujours autoriser écrit la règle dans le dossier de travail, jamais dans les réglages globaux', async () => {
+      const { events, manager, id } = askedManager();
+      manager.send(id, 'permission?');
+      await waitFor(events, 'permission-request');
+      manager.answerPermission(id, 'req-1', 'always');
+      await waitFor(events, 'turn-end');
+      const text = reply(events);
+      expect(text).toContain('"updatedPermissions"');
+      expect(text).toContain('"destination":"localSettings"');
+      expect(text).not.toContain('userSettings');
+      manager.stopAll();
+    });
+
+    it('Refuser envoie le message de refus', async () => {
+      const { events, manager, id } = askedManager();
+      manager.send(id, 'permission?');
+      await waitFor(events, 'permission-request');
+      manager.answerPermission(id, 'req-1', 'deny');
+      await waitFor(events, 'turn-end');
+      expect(reply(events)).toContain("Refusé par l'utilisateur");
+      manager.stopAll();
+    });
+
+    it('ignore un identifiant inconnu et une deuxième réponse', async () => {
+      const { events, manager, id } = askedManager();
+      manager.send(id, 'permission?');
+      await waitFor(events, 'permission-request');
+      manager.answerPermission(id, 'autre', 'allow');
+      expect(events.some((e) => e.type === 'permission-resolved')).toBe(false);
+      manager.answerPermission(id, 'req-1', 'deny');
+      manager.answerPermission(id, 'req-1', 'allow');
+      await waitFor(events, 'turn-end');
+      expect(events.filter((e) => e.type === 'permission-resolved')).toHaveLength(1);
+      expect(reply(events)).not.toContain('"allow"');
+      manager.stopAll();
+    });
+
+    it('Arrêter refuse la demande en attente', async () => {
+      const { events, manager, id } = askedManager();
+      manager.send(id, 'permission?');
+      await waitFor(events, 'permission-request');
+      manager.interrupt(id);
+      await waitFor(events, 'turn-end');
+      expect(events).toContainEqual({ type: 'permission-resolved', sessionId: id, requestId: 'req-1', decision: 'deny' });
+      manager.stopAll();
+    });
+
+    it('fermer la session marque la demande refusée', async () => {
+      const { events, manager, id } = askedManager();
+      manager.send(id, 'permission?');
+      await waitFor(events, 'permission-request');
+      manager.stop(id);
+      expect(events).toContainEqual({ type: 'permission-resolved', sessionId: id, requestId: 'req-1', decision: 'deny' });
+    });
+
+    it('claude annule sa demande : la carte se ferme', async () => {
+      const { events, manager, id } = askedManager();
+      manager.send(id, 'permission?');
+      await waitFor(events, 'permission-request');
+      manager.send(id, 'annule?');
+      await waitFor(events, 'permission-resolved');
+      manager.answerPermission(id, 'req-1', 'allow');
+      await waitFor(events, 'turn-end');
+      expect(reply(events)).toBe('');
+      manager.stopAll();
+    });
+
+    it('un outil qui attend une vraie réponse ne fait pas de carte : Claude doit demander dans le chat', async () => {
+      const { events, manager, id } = askedManager();
+      manager.send(id, 'question?');
+      await waitFor(events, 'turn-end');
+      expect(events.some((e) => e.type === 'permission-request')).toBe(false);
+      expect(reply(events)).toContain('Pose ta question');
+      manager.stopAll();
+    });
+  });
+
   describe('instructions de projet (promptFor)', () => {
     const prompt = 'Instructions du projet « Été » :\nRéponds "court"\n\n- D:\\sujet.pdf';
 
