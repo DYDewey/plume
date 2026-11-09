@@ -1,12 +1,26 @@
 import { Check, ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import type { ModelSetting, Route } from '../../../shared/auto-route';
 import { MODEL_CHOICES, type ModelChoice } from '../../../shared/model';
 
-/** « Par défaut » (undefined) puis les modèles, dans l'ordre du menu. */
-export const MODEL_OPTIONS: { value: ModelChoice | undefined; label: string }[] = [
+/** « Auto », « Par défaut » (undefined) puis les modèles, dans l'ordre du menu. */
+export const MODEL_OPTIONS: { value: ModelSetting | undefined; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
   { value: undefined, label: 'Par défaut' },
   ...MODEL_CHOICES,
 ];
+
+const LABEL: Record<ModelChoice, string> = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku' };
+
+/** Texte du bouton : en Auto, on montre aussi le modèle choisi pour le dernier message. */
+export function pickerLabel(value: ModelSetting | undefined, model?: ModelChoice): string {
+  const option = MODEL_OPTIONS.find((o) => o.value === value) ?? MODEL_OPTIONS[1];
+  return value === 'auto' && model ? `Auto · ${LABEL[model]}` : option.label;
+}
+
+export function routeText(route: Route): string {
+  return `${LABEL[route.model]} : ${route.reason} (${route.source})`;
+}
 
 interface MenuState {
   open: boolean;
@@ -24,20 +38,27 @@ export function menuKey(state: MenuState, key: string, count: number): (MenuStat
 
 export function ModelPicker({
   value,
+  autoModel,
+  route,
   activeModel,
   disabled,
   onChange,
   initialOpen = false,
 }: {
-  value?: ModelChoice;
+  value?: ModelSetting;
+  /** En Auto : modèle actuellement lancé. */
+  autoModel?: ModelChoice;
+  /** En Auto : dernier choix et sa raison. */
+  route?: Route;
   /** Modèle réellement utilisé, lu dans le flux (inconnu avant la 1re réponse). */
   activeModel?: string;
   disabled: boolean;
-  onChange: (model: ModelChoice | undefined) => void;
+  onChange: (model: ModelSetting | undefined) => void;
   /** Pour les tests : rendu avec le menu déjà ouvert. */
   initialOpen?: boolean;
 }) {
-  const current = Math.max(0, MODEL_OPTIONS.findIndex((o) => o.value === value));
+  const found = MODEL_OPTIONS.findIndex((o) => o.value === value);
+  const current = found < 0 ? 1 : found; // valeur inconnue : « Par défaut »
   const [menu, setMenu] = useState<MenuState>({ open: initialOpen, index: current });
   const root = useRef<HTMLSpanElement>(null);
 
@@ -74,9 +95,13 @@ export function ModelPicker({
         aria-expanded={menu.open}
         onClick={() => setMenu({ open: !menu.open, index: current })}
         onKeyDown={onKeyDown}
-        title="Modèle de la session : le changer relance claude, la conversation continue"
+        title={
+          value === 'auto'
+            ? `Auto : le modèle est choisi avant chaque message${route ? `\nDernier choix : ${routeText(route)}` : ''}`
+            : 'Modèle de la session : le changer relance claude, la conversation continue'
+        }
       >
-        {MODEL_OPTIONS[current].label}
+        {pickerLabel(value, autoModel)}
         <ChevronDown size={14} aria-hidden />
       </button>
       {menu.open && (
@@ -94,6 +119,7 @@ export function ModelPicker({
               {i === current && <Check size={14} aria-hidden />}
             </li>
           ))}
+          {value === 'auto' && route && <li className="model-active muted">Dernier choix : {routeText(route)}</li>}
           {activeModel && <li className="model-active muted">Utilisé : {activeModel}</li>}
         </ul>
       )}

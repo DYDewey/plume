@@ -1,6 +1,8 @@
 import type { ChatItem } from '../../../shared/chat-item';
 import type { BridgeEvent, LimitWindow } from '../../../shared/events';
+import type { ModelSetting, Route } from '../../../shared/auto-route';
 import type { ModelChoice } from '../../../shared/model';
+import { launchModel } from '../model-choice';
 
 export type { ChatItem };
 
@@ -18,6 +20,10 @@ export interface SessionState {
   context?: { used: number; max: number };
   /** Modèle choisi dans l'app (absent : « Par défaut »). */
   model?: ModelChoice;
+  /** Mode Auto : le modèle est choisi avant chaque message. */
+  auto?: boolean;
+  /** Dernier choix du mode Auto, avec sa raison. */
+  route?: Route;
   /** Modèle réellement utilisé, lu au démarrage de claude (ex. claude-opus-5-5). */
   activeModel?: string;
   /** Qui a vraiment répondu au dernier tour, d'après le routeur ccr (absent : claude direct). */
@@ -44,8 +50,9 @@ export interface ChatState {
 
 export type ChatAction =
   | BridgeEvent
-  | { type: 'session-opened'; sessionId: string; cwd: string; model?: ModelChoice; title?: string; items?: ChatItem[] }
-  | { type: 'model-changed'; sessionId: string; model: ModelChoice | undefined }
+  | { type: 'session-opened'; sessionId: string; cwd: string; model?: ModelSetting; title?: string; items?: ChatItem[] }
+  | { type: 'model-changed'; sessionId: string; model: ModelChoice | undefined; auto?: boolean }
+  | { type: 'routed'; sessionId: string; route: Route }
   | { type: 'session-closed'; sessionId: string }
   | { type: 'select'; sessionId: string }
   | { type: 'user-sent'; sessionId: string; text: string }
@@ -59,7 +66,7 @@ export function sessionsReducer(state: ChatState, action: ChatAction): ChatState
   switch (action.type) {
     case 'session-opened': {
       const title = action.title ?? action.cwd.split(/[\\/]/).filter(Boolean).pop() ?? action.cwd;
-      const session: SessionState = { id: action.sessionId, cwd: action.cwd, title, items: action.items ?? [], status: 'idle', unread: false, model: action.model };
+      const session: SessionState = { id: action.sessionId, cwd: action.cwd, title, items: action.items ?? [], status: 'idle', unread: false, model: launchModel(action.model), auto: action.model === 'auto' };
       return { ...state, sessions: [...state.sessions, session], activeId: action.sessionId };
     }
     case 'session-closed': {
@@ -87,7 +94,14 @@ export function sessionsReducer(state: ChatState, action: ChatAction): ChatState
     case 'context':
       return update(state, action.sessionId, () => ({ context: { used: action.used, max: action.max } }));
     case 'model-changed':
-      return update(state, action.sessionId, () => ({ model: action.model, activeModel: undefined }));
+      return update(state, action.sessionId, (s) => ({
+        model: action.model,
+        auto: action.auto ?? false,
+        route: action.auto ? s.route : undefined,
+        activeModel: action.model === s.model ? s.activeModel : undefined,
+      }));
+    case 'routed':
+      return update(state, action.sessionId, () => ({ route: action.route }));
     case 'model':
       return update(state, action.sessionId, () => ({ activeModel: action.model }));
     case 'responder':

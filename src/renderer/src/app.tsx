@@ -2,7 +2,6 @@ import { useEffect, useReducer, useState } from 'react';
 import type { ChatItem } from '../../shared/chat-item';
 import { buildHandoffPrompt } from '../../shared/handoff';
 import type { HistoryProject } from '../../shared/history';
-import type { ModelChoice } from '../../shared/model';
 import { displayTitle, emptyOrganize, renameSession, toggleFavorite, type OrganizeData } from '../../shared/organize';
 import { ChatView } from './components/chat-view';
 import { Composer } from './components/composer';
@@ -18,11 +17,12 @@ import { ModelPicker } from './components/model-picker';
 import { ResponderBadge, RouterToggle } from './components/router-toggle';
 import { Sidebar } from './components/sidebar';
 import { ContextBadge } from './components/usage-gauges';
-import { readLastModel, writeLastModel } from './model-choice';
+import { launchModel, readLastModel, writeLastModel } from './model-choice';
+import type { ModelSetting } from '../../shared/auto-route';
 import { Welcome } from './components/welcome';
 import { isSidebarToggle, readCollapsed, writeCollapsed } from './ui-format';
 import { handoffPhase, type HandoffPhase, type PendingHandoff } from './handoff-flow';
-import { initialState, sessionsReducer, type ChatState, type Limits } from './state/sessions';
+import { initialState, sessionsReducer, type ChatState, type Limits, type SessionState } from './state/sessions';
 
 const COMMANDS_KEY = 'commands';
 const LIMITS_KEY = 'limits';
@@ -197,7 +197,7 @@ export function App() {
   }
 
   async function startIn(cwd: string) {
-    const sessionId = await window.claude.startSession(cwd, { model: lastModel });
+    const sessionId = await window.claude.startSession(cwd, { model: launchModel(lastModel) });
     setViewing(null);
     setProjectId(null);
     dispatch({ type: 'session-opened', sessionId, cwd, model: lastModel });
@@ -230,7 +230,7 @@ export function App() {
     const { id, key, path: cwd, items } = viewing;
     const title = displayTitle(viewing, organize.sessions[key]);
     try {
-      const sessionId = await window.claude.startSession(cwd, { model: lastModel, forkFrom: id });
+      const sessionId = await window.claude.startSession(cwd, { model: launchModel(lastModel), forkFrom: id });
       setViewing(null);
       dispatch({ type: 'session-opened', sessionId, cwd, model: lastModel, title, items });
     } catch (err) {
@@ -243,11 +243,16 @@ export function App() {
     dispatch({ type: 'session-closed', sessionId });
   }
 
-  async function changeModel(model: ModelChoice | undefined) {
+  async function changeModel(model: ModelSetting | undefined) {
     if (!active) return;
     const sessionId = active.id;
     setLastModel(model);
     writeLastModel(localStorage, model);
+    if (model === 'auto') {
+      // Pas de relance tout de suite : le prochain message choisira.
+      dispatch({ type: 'model-changed', sessionId, model: active.model, auto: true });
+      return;
+    }
     try {
       await window.claude.setModel(sessionId, model);
       dispatch({ type: 'model-changed', sessionId, model });
@@ -259,8 +264,27 @@ export function App() {
   function send(text: string) {
     if (!active) return;
     setHandoff(null); // un message normal abandonne la passation en attente
-    dispatch({ type: 'user-sent', sessionId: active.id, text });
-    window.claude.sendMessage(active.id, text);
+    void deliver(active, text);
+  }
+
+  /** Affiche le message, choisit le modèle si la session est en Auto (relance si besoin), puis l'envoie. */
+  async function deliver(session: Pick<SessionState, 'id' | 'model' | 'auto' | 'context'>, text: string) {
+    const sessionId = session.id;
+    dispatch({ type: 'user-sent', sessionId, text });
+    if (session.auto) {
+      try {
+        const route = await window.claude.routeMessage(text, session.model, session.context?.used);
+        dispatch({ type: 'routed', sessionId, route });
+        if (route.model !== session.model) {
+          await window.claude.setModel(sessionId, route.model);
+          dispatch({ type: 'model-changed', sessionId, model: route.model, auto: true });
+        }
+      } catch (err) {
+        // Pas de choix possible : on envoie quand même avec le modèle en cours.
+        console.error('mode Auto indisponible', err);
+      }
+    }
+    window.claude.sendMessage(sessionId, text);
   }
 
   function startHandoff() {
@@ -277,12 +301,13 @@ export function App() {
     try {
       await window.claude.saveHandoff(text, from.id);
       // Session neuve (pas de --resume), avec le même modèle que la session résumée.
-      const sessionId = await window.claude.startSession(from.cwd, { model: from.model });
+      const setting = from.auto ? 'auto' : from.model;
+      const model = launchModel(setting);
+      const sessionId = await window.claude.startSession(from.cwd, { model });
       setHandoff(null);
       setSaving({ busy: false });
-      dispatch({ type: 'session-opened', sessionId, cwd: from.cwd, model: from.model });
-      dispatch({ type: 'user-sent', sessionId, text });
-      window.claude.sendMessage(sessionId, text);
+      dispatch({ type: 'session-opened', sessionId, cwd: from.cwd, model: setting });
+      void deliver({ id: sessionId, model, auto: from.auto }, text);
     } catch (err) {
       setSaving({ busy: false, error: `Passation non enregistrée : ${err instanceof Error ? err.message : String(err)}` });
     }
@@ -394,7 +419,9 @@ export function App() {
             onSavePasted={(bytes, ext) => window.claude.savePastedImage(bytes, ext)} commands={state.commands} suggestion={active.suggestion}
             tools={
               <ModelPicker
-                value={active.model}
+                value={active.auto ? 'auto' : active.model}
+                autoModel={active.model}
+                route={active.route}
                 activeModel={active.activeModel}
                 disabled={active.status === 'running'}
                 onChange={(model) => void changeModel(model)}

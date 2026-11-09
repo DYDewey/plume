@@ -13,6 +13,7 @@ Elle garde tout l'historique consultable ; après une passation, la nouvelle ses
 | `history` | liste et relit les `.jsonl` de `~/.claude/projects/`, lecture seule | — |
 | `handoff` | Passation : résumé → relecture/édition → nouvelle session avec ce résumé seul | cli-bridge, chat |
 | `model` | choisir le modèle (Opus, Sonnet…) d'une session et le changer à tout moment | cli-bridge, chat |
+| `auto-model` | choix « Auto » : règles + juge Gemini gratuit (via ccr) choisissent Haiku/Sonnet/Opus avant chaque message | model, cli-bridge |
 | `attachments` | joindre des fichiers (photos, PDF, code…) à un message : bouton, glisser-déposer, coller une capture | cli-bridge, chat |
 | `packaging` | vraie appli Windows : installeur, icône sur le bureau / menu Démarrer, lancement en un clic sans ligne de commande | tous |
 | `ui` | refonte visuelle façon Claude Desktop : thèmes clair/sombre, typo, icônes SVG, barre latérale (recherche, repli), accueil | chat, history, handoff, model |

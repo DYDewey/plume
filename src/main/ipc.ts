@@ -6,6 +6,8 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { IPC } from '../shared/api';
 import { isPermissionDecision } from '../shared/events';
 import { isModelChoice } from '../shared/model';
+import { decideRoute, ruleRoute } from '../shared/auto-route';
+import { askJudge, logRoute } from './judge';
 import { isSessionId } from './claude-args';
 import { validQuery } from '../shared/search';
 import { emptyOrganize, parseOrganize, type OrganizeData } from '../shared/organize';
@@ -79,6 +81,21 @@ export function registerClaudeIpc(): SessionManager {
     if (typeof enabled !== 'boolean') throw new Error('Valeur invalide');
     routerEnabled = enabled;
     saveRouterEnabled(userData, enabled);
+  });
+
+  // Mode Auto : règles + juge Gemini (via ccr, seulement s'il est actif) → modèle du prochain message.
+  const routeLog = join(userData, 'auto-route.jsonl');
+  ipcMain.handle(IPC.route, async (_e, text: unknown, current: unknown, contextUsed: unknown) => {
+    if (typeof text !== 'string') throw new Error('Message invalide');
+    const ctx = {
+      current: isModelChoice(current) ? current : undefined,
+      contextUsed: typeof contextUsed === 'number' ? contextUsed : undefined,
+    };
+    const rule = ruleRoute(text);
+    const judge = text.trim().startsWith('/') ? null : await askJudge(text, { token: launcher === DIRECT ? null : readRouterToken() });
+    const route = decideRoute(text, rule, judge, ctx);
+    void logRoute(routeLog, text, rule, judge, route);
+    return route;
   });
 
   ipcMain.on(IPC.send, (_e, sessionId: unknown, text: unknown) => {

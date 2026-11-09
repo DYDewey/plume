@@ -14,6 +14,7 @@ const api: ClaudeApi = {
   interrupt: (sessionId) => ipcRenderer.send(IPC.interrupt, sessionId),
   stopSession: (sessionId) => ipcRenderer.send(IPC.stop, sessionId),
   setModel: (sessionId, model) => ipcRenderer.invoke(IPC.setModel, sessionId, model),
+  routeMessage: (text, current, contextUsed) => ipcRenderer.invoke(IPC.route, text, current, contextUsed),
   onEvent: (cb) => {
     const listener = (_e: IpcRendererEvent, event: BridgeEvent) => cb(event);
     ipcRenderer.on(IPC.event, listener);

@@ -1,3 +1,4 @@
+import type { Route } from './auto-route';
 import type { ChatItem } from './chat-item';
 import type { BridgeEvent, PermissionDecision } from './events';
 import type { HistoryProject } from './history';
@@ -24,6 +25,8 @@ export interface ClaudeApi {
   stopSession(sessionId: string): void;
   /** Relance la session avec un autre modèle (undefined : « Par défaut ») ; la conversation continue. */
   setModel(sessionId: string, model: ModelChoice | undefined): Promise<void>;
+  /** Mode Auto : modèle conseillé pour ce message (règles + juge Gemini gratuit). */
+  routeMessage(text: string, current?: ModelChoice, contextUsed?: number): Promise<Route>;
   /** Renvoie la fonction de désabonnement. */
   onEvent(cb: (event: BridgeEvent) => void): () => void;
   /** Anciennes sessions de ~/.claude/projects/, en lecture seule. */
@@ -53,6 +56,7 @@ export const IPC = {
   savePasted: 'files:save-pasted',
   stop: 'claude:stop',
   setModel: 'session:set-model',
+  route: 'session:route',
   event: 'claude:event',
   historyList: 'history:list',
   historyRead: 'history:read',
