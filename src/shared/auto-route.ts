@@ -37,38 +37,124 @@ interface Rule {
   test: RegExp;
 }
 
-// Testées sur le texte normalisé (minuscules, sans accents). L'ordre compte peu : on garde le modèle le plus fort trouvé.
+// Testées sur le texte normalisé (minuscules, sans accents). On écrit donc les mots sans accents.
+// Les listes peuvent contenir de petites regex (« tests? » = test ou tests).
+
+/** Liste de mots → regex « mot entier » : w('bug', 'crash') trouve « un bug » mais pas « debugger ». */
+const w = (...words: string[]) => new RegExp(`\\b(${words.join('|')})\\b`);
+
+// ---------- Opus sûr : impossible de bien répondre sans un modèle fort ----------
+
+/** Vocabulaire qui n'existe que dans le code. */
+const DEV_WORDS = [
+  // erreurs et débogage
+  'bugs?', 'bogues?', 'debug(gue|ger|guer|ging)?', 'debogue[rz]?', 'crash(e|es|ent)?', 'plantage', 'freeze', 'fuite memoire', 'memory leak',
+  'segfault', 'core dump', 'breakpoint', 'point d.arret', 'logcat', 'stacktrace', 'warning', 'deprecated',
+  // actions sur du code
+  'implemente[rz]?', 'implementation', 'refactor(ise|iser|ing|e)?', 'refacto', 'coder', 'codez', 'codes? source', 'programmer', 'compile[rz]?', 'compilation',
+  'deploie[rz]?', 'deploiement', 'transpile', 'minifie', 'debouncer?', 'parser', 'parse[rz]?', 'serialise[rz]?',
+  // git et outils
+  'git', 'github', 'gitlab', 'commit(s|e|er)?', 'merge[rz]?', 'rebase', 'cherry[- ]pick', 'pull request', 'push(e|er)? (sur|vers) (github|gitlab|le depot)', 'depot git', 'repo(sitory)?', 'gitignore',
+  'pipeline ci', 'ci/cd', 'github actions', 'workflow yaml', 'lint(er)?', 'eslint', 'prettier', 'typecheck', 'tests? unitaires?', 'tests? d.integration', 'vitest', 'jest', 'pytest', 'junit',
+  'npm run', 'npm install', 'pip install', 'node_modules', 'package\\.json', 'requirements\\.txt', 'gradle(w)?', 'maven', 'cmake', 'makefile',
+  // langages et frameworks
+  'typescript', 'javascript', 'python', 'kotlin', 'java', 'rust', 'golang', 'php', 'swift', 'dart', 'flutter',
+  'react', 'next\\.?js', 'vue\\.?js', 'angular', 'svelte', 'node\\.?js','django', 'flask', 'fastapi', 'spring( boot)?', 'laravel',
+  'electron', 'vite', 'webpack', 'tailwind', 'jetpack compose', 'android studio', 'xcode', 'unity', 'godot', 'unreal',
+  // notions de programmation
+  'usestate', 'useeffect', 'hooks? react', 'async', 'await', 'promise', 'callback', 'closure', 'lambda', 'recursi(on|ve|f)', 'pointeurs?', 'malloc', 'mutex', 'thread(s)?',
+  'variable (globale|locale|d.environnement)', 'boucle (for|while)', 'tableau (en|de) (js|python|c)', 'json', 'yaml', 'regex', 'expression reguliere',
+  'endpoint', 'middleware', 'backend', 'frontend', 'full[- ]?stack', 'api (rest|graphql)', 'graphql', 'websocket', 'cors', 'jwt', 'oauth', 'sdk',
+  'base de donnees', 'requete sql', 'sql', 'nosql', 'mongodb', 'postgres(ql)?', 'mysql', 'sqlite', 'firebase', 'supabase', 'orm', 'prisma', 'migration de (base|schema)',
+  // système et terminal
+  'powershell', 'bash', 'terminal', 'ligne de commande', 'invite de commande', 'cmd\\.exe', 'script (bat|shell|python|powershell)', 'variable path', 'localhost', 'port \\d{2,5}',
+  'docker(file)?', 'kubernetes', 'k8s', 'ssh', 'cron', 'systemd', 'registre windows', 'dll', 'adb', 'apk', 'vulkan', 'shaders?', 'directx', 'opengl',
+  // anglais
+  'fix (the|this|my)', 'implement', 'refactor', 'debug', 'unit tests?', 'stack trace', 'compile', 'deploy', 'pull request', 'merge conflict', 'build (fails|failed|error)',
+];
+
 const OPUS_SURE: Rule[] = [
-  { model: 'opus', sure: true, reason: 'code collé', test: /```|^\s*(import|export|def|class|function|const|let|var|public|private|#include|using)\s/m },
-  { model: 'opus', sure: true, reason: "trace d'erreur", test: /traceback|\bexception\b|stack ?trace|\berror:|\berreur ?:|\bat .+\(.+:\d+|\b(at|on) line \d+|a la ligne \d+|segfault|nullpointer|undefined is not|cannot read propert|typeerror|syntaxerror|referenceerror|npm err|exit code|code de sortie/ },
-  { model: 'opus', sure: true, reason: 'fichier de code cité', test: /\b[\w./\\-]+\.(tsx?|jsx?|mjs|cjs|py|java|kt|kts|c|cc|cpp|h|hpp|cs|go|rs|rb|php|swift|dart|lua|sql|sh|ps1|bat|gradle|vue|svelte|html|css|scss|json|ya?ml|toml|xml|ini|ipynb)\b/ },
+  { model: 'opus', sure: true, reason: 'code collé', test: /```|^\s*(import|export|def|class|function|const|let|var|public|private|#include|using|package|fun|func|SELECT|<\?php|<!doctype|<div|@Composable)\b/im },
+  { model: 'opus', sure: true, reason: "trace d'erreur", test: /traceback|\bexception\b|stack ?trace|\berror:|\berreur ?:|\bat .+\(.+:\d+|\b(at|on) line \d+|a la ligne \d+|nullpointer|undefined is not|is not defined|cannot read propert|typeerror|syntaxerror|referenceerror|valueerror|keyerror|indexerror|attributeerror|modulenotfound|importerror|npm err|exit code|code de sortie|err_\w+|e\/androidruntime|fatal exception|\b(4\d\d|5\d\d) (not found|internal server error|bad request|unauthorized|forbidden)/ },
+  { model: 'opus', sure: true, reason: 'fichier de code cité', test: /\b[\w./\\-]+\.(tsx?|jsx?|mjs|cjs|py|java|kt|kts|c|cc|cpp|h|hpp|cs|go|rs|rb|php|swift|dart|lua|sql|sh|ps1|bat|cmd|gradle|vue|svelte|html|css|scss|json|ya?ml|toml|xml|ini|ipynb|env|lock|md)\b/ },
   { model: 'opus', sure: true, reason: 'chemin ou pièce jointe', // « http:// » n'est pas un chemin Windows : on exclut « :// ».
     test: /\b[a-z]:[\\/](?!\/)|(^|\s)\.{0,2}\/[\w.-]+\/[\w.-]+/ },
-  { model: 'opus', sure: true, reason: 'travail sur du code', test: /\b(debug(gue|ger)?|implemente[rz]?|refactor(ise|iser|e)?|coder|codez|programmer|compile[rz]?|deploie[rz]?|bug|bugs|bogue|crash|plantage|commit|merge|rebase|pull request|build|lint|tests? unitaires?|typecheck)\b|\bcode\b(?! (postal|de la route|promo|pin|secret|civil|penal|vestimentaire))|\b(ca|il|elle|qui|l'appli|l'app) plante\b|\b(corrige|repare|optimise)[rz]? (le|la|les|mon|ma|mes|ce|cette|ces) (code|script|fonction|requete|appli|app|programme|erreur|bug|test|page|site)/ },
-  { model: 'opus', sure: true, reason: 'création logicielle', test: /\b(cree|creer|fais|faire|ecris|ecrire|developpe|developper|ajoute|ajouter|construis|genere)\b.{0,40}\b(app|appli|application|site|page web|api|fonction|classe|script|programme|composant|module|bot|extension|plugin|serveur|base de donnees|requete|endpoint|interface|jeu|algorithme|regex)\b/ },
-  { model: 'opus', sure: true, reason: 'code (anglais)', test: /\b(fix|implement|refactor|debug|write (a|the) (function|script|class|test)|unit tests?|stack trace|compile|deploy)\b/ },
-  { model: 'opus', sure: true, reason: 'outils de dev', test: /\b(git|npm|npx|pip|gradle|docker|kubernetes|vite|webpack|electron|react|typescript|python|kotlin|android studio|vs ?code|powershell|bash|sql|api rest|graphql|regex)\b.{0,60}\b(marche pas|fonctionne pas|erreur|probleme|configure|installe|comment)\b/ },
+  { model: 'opus', sure: true, reason: 'vocabulaire de code', test: w(...DEV_WORDS) },
+  { model: 'opus', sure: true, reason: 'travail sur du code',
+    // « code » seul, sauf code postal, code de la route…
+    test: /\bc(\+\+|#)(?!\w)|\bcode\b(?! (postal|de la route|promo|pin|secret|civil|penal|vestimentaire|couleur|barre|wifi|parrainage))|\b(ca|il|elle|qui|l'appli|l'app|le jeu|le programme|le site|mon pc|windows) (plante|crashe?|bug(ue)?|freeze)\b|\b(corrige|repare|optimise|ameliore|nettoie|teste|relis|commente|documente)[rz]? (le|la|les|mon|ma|mes|ce|cette|ces|son|sa) (code|script|fonction|methode|classe|requete|appli|app|programme|erreur|bug|test|page|site|composant|module|api|projet)/ },
+  { model: 'opus', sure: true, reason: 'création logicielle',
+    test: /\b(cree|creer|fais|faire|ecris|ecrire|developpe|developper|ajoute|ajouter|construis|genere|code|programme|integre|branche|automatise|connecte)\b.{0,40}\b(app|appli|application|site( web)?|page web|landing page|api|fonction|methode|classe|script|composant|module|bot|extension|plugin|serveur|base de donnees|requete|endpoint|interface graphique|formulaire|bouton|jeu video|algorithme|regex|macro|widget|dashboard|tableau de bord|scraper|crawler|cli|outil en ligne de commande)\b/ },
+  // Pas « sûr » : un souci de wifi ou de Windows n'a pas forcément besoin d'Opus, le juge tranche.
+  { model: 'opus', sure: false, reason: 'souci technique',
+    test: /\b(git|npm|pip|gradle|docker|vs ?code|android studio|powershell|python|node|java|wsl|linux|ubuntu|windows|virtualbox|wifi|pilote|driver|bios)\b.{0,60}\b(marche pas|marche plus|fonctionne pas|fonctionne plus|erreur|probleme|bloque|refuse|introuvable|n'est pas reconnu|not recognized|configure[rz]?|installe[rz]?|desinstalle[rz]?|mettre a jour)\b/ },
 ];
+
+// ---------- Opus probable : raisonnement long ou difficile (le juge peut corriger) ----------
 
 const OPUS_GUESS: Rule[] = [
-  { model: 'opus', sure: false, reason: 'tâche complexe', test: /\b(analyse (en profondeur|complete|detaillee)|architecture|plan detaille|etape par etape|strategie|audit|demontre|demonstration|preuve|optimise|compare en detail|projet complet|cahier des charges|specification)\b/ },
-  { model: 'opus', sure: false, reason: 'mathématiques avancées', test: /\b(integrale|derivee|matrice|equation differentielle|probabilite conditionnelle|theoreme|limite de|suite recurrente|complexite algorithmique)\b/ },
+  { model: 'opus', sure: false, reason: 'tâche complexe', test: w(
+    'analyse (en profondeur|complete|detaillee|approfondie)', 'architecture', 'plan detaille', 'etape par etape', 'pas a pas', 'strategie', 'audit',
+    'compare en detail', 'projet complet', 'cahier des charges', 'specifications?', 'conception', 'modelisation', 'uml', 'merise', 'mcd', 'diagramme de (classes?|sequence)',
+    'optimise[rz]?', 'automatise[rz]?', 'business plan', 'etude de marche', 'memoire de (fin|stage)', 'these', 'step by step', 'in depth',
+  ) },
+  { model: 'opus', sure: false, reason: 'maths ou sciences difficiles', test: w(
+    'demontre[rz]?', 'demonstration', 'preuve', 'par recurrence', 'theoreme', 'lemme', 'integrales?', 'derivees?', 'primitives?', 'matrices?', 'determinant', 'valeurs? propres?',
+    'equations? differentielles?', 'limite de', 'suites? (recurrentes?|numeriques?)', 'series? entieres?', 'probabilites? conditionnelles?', 'loi (normale|binomiale|de poisson)',
+    'esperance', 'variance', 'denombrement', 'complexite (algorithmique|en temps)', 'grand o', 'graphes?', 'dijkstra', 'automates?', 'logique booleenne', 'tables? de verite',
+    'thermodynamique', 'mecanique quantique', 'electromagnetisme', 'optique', 'cinematique', 'resous', 'resoudre', 'exercices?', 'probleme de maths', 'prove',
+  ) },
+  { model: 'opus', sure: false, reason: 'réseau ou sécurité', test: w(
+    'sous[- ]reseaux?', 'subnet(ting)?', 'masque de sous[- ]reseau', 'cidr', 'vlsm', 'vlans?', 'ospf', 'bgp', 'rip', 'eigrp', 'routage', 'table de routage', 'nat', 'acl',
+    'iptables', 'pare[- ]feu', 'firewall', 'vpn', 'wireshark', 'nmap', 'packet tracer', 'cisco', 'gns3', 'pentest', 'ctf', 'exploit', 'injection sql', 'xss', 'csrf',
+    'chiffrement', 'cryptographie', 'rsa', 'aes', 'hash(age)?', 'certificat ssl', 'tls', 'active directory', 'gpo', 'serveur dns', 'serveur dhcp',
+  ) },
 ];
+
+// ---------- Sonnet : réponse construite, sans code ni raisonnement très long ----------
 
 const SONNET: Rule[] = [
-  { model: 'sonnet', sure: false, reason: 'explication', test: /\b(explique|expliquer|pourquoi|comment (ca|fonctionne|marche|faire)|difference entre|quelle est la difference|aide[- ]moi a comprendre|cours sur|fiche de revision|resume (ce|cet|cette|le|la) (texte|cours|article|chapitre|document))\b/ },
-  { model: 'sonnet', sure: false, reason: 'rédaction', test: /\b(redige|rediger|ecris (un|une|moi)|ecrire (un|une)|mail|e-mail|lettre|courrier|dissertation|lettre de motivation|cv|rapport|compte rendu|discours|post linkedin|paragraphe|introduction|conclusion)\b/ },
-  { model: 'sonnet', sure: false, reason: 'conseil ou avis', test: /\b(conseil|conseille|recommande|que penses[- ]tu|ton avis|aide[- ]moi a choisir|lequel (choisir|prendre)|vaut[- ]il mieux|idees? de|brainstorm)\b/ },
-  { model: 'sonnet', sure: false, reason: 'question détaillée', test: /\b(liste|compare|avantages|inconvenients|exemples?)\b/ },
+  { model: 'sonnet', sure: false, reason: 'explication', test: w(
+    'explique[rz]?', 'explication', 'pourquoi', 'comment (ca|fonctionne|marche|faire|fait[- ]on|on fait|je peux|puis[- ]je)', 'difference entre', 'quelle est la difference',
+    'aide[- ]moi a comprendre', 'je comprends pas', 'j.ai pas compris', 'cours sur', 'fiche (de revision)?', 'revision', 'reviser', 'resume[rz]? (ce|cet|cette|le|la|les)',
+    'qcm', 'quiz', 'interroge[- ]moi', 'questions? de revision', 'analyse (ce|cet|cette|le|la) (texte|poeme|document|image|graphique)', 'commentaire (de texte|compose)',
+    'explain', 'why', 'how (does|do|to|can)', 'summari[sz]e',
+  ) },
+  { model: 'sonnet', sure: false, reason: 'rédaction', test: w(
+    'redige[rz]?', 'redaction', 'ecris[- ](moi )?(un|une|des)', 'ecrire (un|une|des)', 'mail', 'e-?mail', 'lettre', 'courrier', 'message (a|pour) (mon|ma|mes)', 'dissertation',
+    'lettre de motivation', 'cv', 'rapport( de stage)?', 'compte[- ]rendu', 'discours', 'post (linkedin|instagram)', 'paragraphe', 'introduction', 'conclusion', 'argumentaire',
+    'histoire', 'poeme', 'chanson', 'slogan', 'description', 'presentation (orale)?', 'diapo(rama)?s?', 'slides?', 'oral', 'soutenance', 'write (an?|me)',
+  ) },
+  { model: 'sonnet', sure: false, reason: 'conseil ou avis', test: w(
+    'conseils?', 'conseille[rz]?', 'recommande[rz]?', 'que penses[- ]tu', 'ton avis', 'qu.en penses[- ]tu', 'aide[- ]moi a (choisir|decider)', 'lequel (choisir|prendre)', 'laquelle',
+    'vaut[- ]il mieux', 'est[- ]ce que je (dois|devrais)', 'idees? (de|pour)', 'brainstorm', 'suggestions?', 'propose[- ]moi', 'organise[rz]?', 'planning', 'emploi du temps',
+    'budget', 'recette', 'programme (de|d.)(sport|musculation|entrainement|revision)', 'voyage', 'itineraire', 'orientation', 'stage', 'alternance', 'entretien d.embauche',
+  ) },
+  { model: 'sonnet', sure: false, reason: 'question détaillée', test: w(
+    'liste[rz]?', 'compare[rz]?', 'comparaison', 'avantages?', 'inconvenients?', 'exemples?', 'details?', 'en detail', 'developpe', 'approfondis', 'causes?', 'consequences?',
+    'histoire de', 'histoire du', 'biographie', 'philosophie', 'litterature', 'economie', 'geopolitique', 'droit', 'biologie', 'chimie', 'physique',
+  ) },
 ];
 
+// ---------- Haiku : réponse courte et facile ----------
+
 const HAIKU: Rule[] = [
-  { model: 'haiku', sure: false, reason: 'politesse', test: /^(salut|bonjour|bonsoir|coucou|hello|hey|yo|merci|thanks|ok|okay|d'accord|dac|cool|super|top|parfait|oui|non|bien|ca va|bonne nuit|a plus|bye)\b.{0,25}$/ },
-  { model: 'haiku', sure: false, reason: 'définition rapide', test: /^(c'est quoi|c quoi|qu'est[- ]ce que?|que veut dire|ca veut dire quoi|definition|definis|signification|what is|what's)\b/ },
-  { model: 'haiku', sure: false, reason: 'traduction ou langue', test: /\b(tradui[st]|traduction|translate|synonyme|antonyme|conjugue|orthographe|comment on dit|comment dit[- ]on|pluriel de|feminin de)\b/ },
-  { model: 'haiku', sure: false, reason: 'fait simple', test: /^(combien|quand|quel(le)?s? (est|sont|age|jour|heure|annee|date|capitale|pays|taille|poids)|qui (est|a|etait)|ou (est|se trouve)|en quelle annee)\b/ },
-  { model: 'haiku', sure: false, reason: 'calcul ou conversion', test: /^[\d\s.,+\-*/x×÷()%^=?]+$|\b(convertis|conversion|calcule) .{0,30}\d/ },
-  { model: 'haiku', sure: false, reason: 'reformulation courte', test: /^(reformule|corrige l'orthographe|corrige les fautes|resume en une phrase|dis[- ]moi juste)\b/ },
+  { model: 'haiku', sure: false, reason: 'politesse',
+    test: /^(salut|slt|bonjour|bjr|bonsoir|coucou|cc|re|hello|hey|hi|yo|wesh|merci|mrc|thanks|thx|ok|okay|oki|d'accord|d'acc|dac|cool|super|top|parfait|nickel|genial|trop bien|oui|ouais|non|nan|bien|ca va|tranquille|bonne (nuit|journee|soiree)|a plus|a\+|a demain|bye|lol|mdr|ptdr|haha|ah ok|je vois|compris|vu|bravo|gg)\b.{0,25}$/ },
+  { model: 'haiku', sure: false, reason: 'définition rapide',
+    test: /^(c'est quoi|c quoi|cest quoi|qu'est[- ]ce que?|qu'est[- ]ce qu'un|que veut dire|que signifie|ca veut dire quoi|ca signifie quoi|definition|definis|signification|sens du mot|what is|what's|what does .+ mean)\b/ },
+  { model: 'haiku', sure: false, reason: 'traduction ou langue', test: w(
+    'tradui[st]', 'traduction', 'traduire', 'translate', 'en anglais', 'en espagnol', 'en allemand', 'en italien', 'synonymes?', 'antonymes?', 'contraire de', 'conjugue[rz]?',
+    'conjugaison', 'orthographe', 'comment (on dit|dit[- ]on|ca s.ecrit|s.ecrit)', 'pluriel de', 'feminin de', 'accord du participe', 'acronyme', 'abreviation', 'rime avec',
+  ) },
+  { model: 'haiku', sure: false, reason: 'fait simple',
+    test: /^(combien|quand|quel(le)?s? (est|sont|age|jour|heure|annee|date|capitale|pays|taille|poids|population|monnaie|langue|distance)|qui (est|a|etait|sont)|ou (est|se trouve|se situe)|en quelle annee|a quelle (heure|date)|est[- ]ce que .{0,40}\?$|vrai ou faux)\b/ },
+  { model: 'haiku', sure: false, reason: 'calcul ou conversion',
+    test: /^[\d\s.,+\-*/x×÷()%^=?]+$|\b(convertis|conversion|calcule|combien font|combien fait|fait combien)\b.{0,30}\d|\b\d+([.,]\d+)? ?(km|m|cm|mm|kg|g|l|ml|°c|°f|euros?|€|\$|dollars?|miles?|heures?|minutes?) en (km|m|cm|mm|kg|g|l|ml|°c|°f|euros?|dollars?|miles?|heures?|minutes?|secondes?)\b/ },
+  { model: 'haiku', sure: false, reason: 'petite demande', test: w(
+    'reformule[rz]?', 'corrige (l.orthographe|les fautes|mes fautes|cette phrase)', 'resume en une phrase', 'en un mot', 'dis[- ]moi juste', 'juste (oui|non)', 'rapidement',
+    'en majuscules?', 'en minuscules?', 'une blague', 'pile ou face', 'nombre (au hasard|aleatoire)', 'un prenom', 'donne[- ]moi un mot', 'emoji',
+  ) },
 ];
 
 /** Choix par les règles seules. Message court sans signal → Haiku ; long ou sans signal → Sonnet. */

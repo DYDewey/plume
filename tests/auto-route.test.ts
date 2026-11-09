@@ -48,6 +48,52 @@ describe('règles', () => {
     expect(model('à quelle heure passe la ligne 3 du bus')).not.toBe('opus');
   });
 
+  it.each([
+    'wesh',
+    'mdr',
+    'bonne nuit',
+    'que signifie FOMO',
+    'conjugue aller au subjonctif',
+    'combien font 15% de 80',
+    '10 km en miles',
+    'raconte une blague',
+    'pile ou face',
+    'quelle est la population du Japon',
+  ])('Haiku (mots ajoutés) : %s', (text) => expect(model(text)).toBe('haiku'));
+
+  it.each([
+    'fais-moi un QCM sur la Seconde Guerre mondiale',
+    'prépare mon oral de soutenance',
+    'propose-moi un programme de musculation',
+    "donne-moi une recette avec des pâtes et du thon",
+    'écris-moi une lettre de motivation pour une alternance',
+    'je comprends pas la différence entre ADN et ARN',
+    'how does photosynthesis work',
+  ])('Sonnet (mots ajoutés) : %s', (text) => expect(model(text)).toBe('sonnet'));
+
+  it.each([
+    'mon useEffect tourne en boucle',
+    'comment faire un commit sur github',
+    'ModuleNotFoundError: No module named requests',
+    'écris un script powershell pour renommer mes photos',
+    'quelle différence entre let et var en javascript',
+    'mon programme en C++ fait un segfault',
+    'crée un bot discord',
+    'requête SQL pour compter les clients par ville',
+    "l'émulateur freeze à cause des shaders",
+  ])('Opus sûr (mots ajoutés) : %s', (text) => {
+    expect(ruleRoute(text)).toMatchObject({ model: 'opus', sure: true });
+  });
+
+  it.each([
+    'calcule le masque de sous-réseau pour 50 hôtes',
+    'démontre par récurrence que 2^n > n',
+    'configure un VLAN sur un switch Cisco',
+    'mon wifi ne fonctionne plus sur Windows',
+  ])('Opus probable (le juge peut corriger) : %s', (text) => {
+    expect(ruleRoute(text)).toMatchObject({ model: 'opus', sure: false });
+  });
+
   it('tâche complexe ou très long message → Opus, sans être sûr', () => {
     expect(ruleRoute('fais une analyse en profondeur du marché des VTC')).toMatchObject({ model: 'opus', sure: false });
     expect(ruleRoute('blabla '.repeat(300))).toMatchObject({ model: 'opus', sure: false });
