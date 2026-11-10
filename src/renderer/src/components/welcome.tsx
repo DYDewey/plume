@@ -1,4 +1,4 @@
-import { ChevronDown, Folder, MessageSquare, Plus } from 'lucide-react';
+import { ChevronDown, Folder, MessageSquare, Plus, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { HistoryProject } from '../../../shared/history';
 import { displayTitle, sessionKey, type OrganizeData } from '../../../shared/organize';
@@ -34,14 +34,26 @@ export function recentSessions(projects: HistoryProject[], organize: OrganizeDat
     }));
 }
 
-/** Dossier de travail de la prochaine conversation, à côté du trombone. */
-export function FolderChip({ folder, onPick }: { folder: string | null; onPick: () => void }) {
+/** Dossier de travail facultatif de la prochaine conversation, à côté du trombone. Sans dossier : simple discussion. */
+export function FolderChip({ folder, onPick, onClear }: { folder: string | null; onPick: () => void; onClear: () => void }) {
   return (
-    <button type="button" className="folder-chip" onClick={onPick} title={folder ? `Dossier de travail : ${folder}\nCliquer pour changer` : 'Choisir le dossier de travail'}>
-      <Folder size={14} aria-hidden />
-      <span>{folder ? folderLabel(folder) : 'Choisir un dossier'}</span>
-      <ChevronDown size={12} aria-hidden />
-    </button>
+    <span className={folder ? 'folder-chip-wrap set' : 'folder-chip-wrap'}>
+      <button
+        type="button"
+        className="folder-chip"
+        onClick={onPick}
+        title={folder ? `Dossier de travail : ${folder}\nCliquer pour changer` : 'Simple discussion. Choisir un dossier pour que Claude travaille dans tes fichiers'}
+      >
+        <Folder size={14} aria-hidden />
+        <span>{folder ? folderLabel(folder) : 'Sans dossier'}</span>
+        <ChevronDown size={12} aria-hidden />
+      </button>
+      {folder && (
+        <button type="button" className="btn-icon folder-clear" onClick={onClear} aria-label="Retirer le dossier" title="Revenir à une simple discussion">
+          <X size={12} aria-hidden />
+        </button>
+      )}
+    </span>
   );
 }
 

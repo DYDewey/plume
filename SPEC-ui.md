@@ -58,6 +58,8 @@ Rendre l'interface aussi soignée que Claude Desktop (sobriété, typographie, e
 - Logo : plume blanche sur carré arrondi terracotta en dégradé (`resources/logo.svg`, composant `Logo`, tracés identiques vérifiés par test).
 
 ## Accueil (2026-11-10)
-- Saisie directe : écrire sur l'accueil démarre une conversation dans le dossier affiché (le dernier utilisé, changeable d'un clic ; demandé s'il n'y en a pas).
+- « Nouvelle conversation » (bouton, Ctrl+N, + de la barre repliée) ramène toujours à l'accueil, même si des conversations sont ouvertes.
+- Saisie directe, **sans dossier par défaut** : simple discussion, lancée dans `%APPDATA%\mon-claude\discussions` (claude a toujours besoin d'un dossier ; créé par main, IPC `chat:folder`). La puce « Sans dossier » permet d'en choisir un (projet, cours…), la croix revient à une simple discussion. Le choix n'est pas retenu : chaque nouvelle conversation repart sans dossier.
+- « Nouvelle conversation » d'un projet garde le dossier du projet.
 - « Récentes » : les 3 dernières conversations (hors sessions techniques), ouvertes d'un clic.
 - Barre latérale : la section « Ouvertes » disparaît quand rien n'est ouvert.

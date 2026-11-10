@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -143,6 +143,13 @@ export function registerClaudeIpc(): SessionManager {
 
   ipcMain.on(IPC.send, (_e, sessionId: unknown, text: unknown) => {
     if (typeof sessionId === 'string' && typeof text === 'string') manager.send(sessionId, text);
+  });
+
+  // Conversation « sans dossier » : claude a besoin d'un dossier de travail, on lui donne celui de l'app.
+  ipcMain.handle(IPC.chatFolder, () => {
+    const dir = join(userData, 'discussions');
+    mkdirSync(dir, { recursive: true });
+    return dir;
   });
 
   ipcMain.handle(IPC.pickFolder, async (e) => {

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { greeting, recentSessions, Welcome } from '../src/renderer/src/components/welcome';
+import { FolderChip, greeting, recentSessions, Welcome } from '../src/renderer/src/components/welcome';
 
 describe('Welcome', () => {
   it('logo plume, salutation et bouton principal « Nouvelle conversation »', () => {
@@ -44,5 +44,19 @@ describe('accueil : saisie et récentes', () => {
     const recent = recentSessions(projects, organize as never, 10);
     expect(recent.map((r) => r.title)).toEqual(['b', 'Renommée', 'c']);
     expect(recent[0].meta).toMatch(/^p · /);
+  });
+});
+
+describe('FolderChip', () => {
+  it('sans dossier par défaut : simple discussion', () => {
+    const html = renderToStaticMarkup(<FolderChip folder={null} onPick={() => {}} onClear={() => {}} />);
+    expect(html).toContain('Sans dossier');
+    expect(html).not.toContain('Retirer le dossier');
+  });
+
+  it('dossier choisi : son nom et une croix pour revenir sans dossier', () => {
+    const html = renderToStaticMarkup(<FolderChip folder="D:/Cours/maths" onPick={() => {}} onClear={() => {}} />);
+    expect(html).toContain('maths');
+    expect(html).toContain('Retirer le dossier');
   });
 });

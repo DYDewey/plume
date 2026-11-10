@@ -32,7 +32,7 @@ import { exportFileName, toMarkdown } from '../../shared/export';
 import { lastArtifact } from '../../shared/auto-artifact';
 import { addPrompt, parsePrompts, removePrompt, type SavedPrompt } from '../../shared/prompts';
 import { TitleBar } from './components/title-bar';
-import { readArtifactWidth, writeArtifactWidth, HISTORY_SEARCH_ID, isCtrlLetter, isSettingsShortcut, isSidebarToggle, neighborSession, readCollapsed, readLastFolder, writeLastFolder, tabDirection, writeCollapsed } from './ui-format';
+import { readArtifactWidth, writeArtifactWidth, HISTORY_SEARCH_ID, isCtrlLetter, isSettingsShortcut, isSidebarToggle, neighborSession, readCollapsed, tabDirection, writeCollapsed } from './ui-format';
 import { handoffPhase, shouldSuggestHandoff, type HandoffPhase, type PendingHandoff } from './handoff-flow';
 import { HandoffBanner } from './components/handoff-banner';
 import { initialState, lastUserText, sessionsReducer, type ChatState, type Limits, type SessionState } from './state/sessions';
@@ -145,6 +145,8 @@ export function App() {
     return () => clearTimeout(t);
   }, [notice]);
   // Sessions où l'on a répondu « Plus tard » au bandeau de passation.
+  // Accueil affiché par « Nouvelle conversation » même si des conversations sont ouvertes.
+  const [home, setHome] = useState(false);
   const [handoffDismissed, setHandoffDismissed] = useState<ReadonlySet<string>>(new Set());
   const [lastModel, setLastModel] = useState(() => readLastModel(localStorage));
   // Fiche de projet affichée (à la place de la session et de la relecture).
@@ -299,11 +301,11 @@ export function App() {
       const before = lastStatus.current.get(s.id);
       lastStatus.current.set(s.id, s.status);
       if (before !== 'running' || s.status !== 'idle') continue;
-      if (!settings.autoArtifacts || s.id !== state.activeId || viewing || settingsOpen || projectId) continue;
+      if (!settings.autoArtifacts || s.id !== state.activeId || viewing || settingsOpen || projectId || home) continue;
       const found = lastArtifact(s.items);
       if (found) openArtifact(found);
     }
-  }, [state.sessions, state.activeId, settings.autoArtifacts, viewing, settingsOpen, projectId, openArtifact]);
+  }, [state.sessions, state.activeId, settings.autoArtifacts, viewing, settingsOpen, projectId, home, openArtifact]);
 
   // claude n'envoie la liste des commandes qu'à sa 1re réponse : on garde la dernière pour les sessions neuves.
   useEffect(() => {
@@ -325,9 +327,16 @@ export function App() {
     }
   }, [state.limits]);
 
-  async function newSession() {
-    const cwd = await window.claude.pickFolder();
-    if (cwd) await startIn(cwd);
+  /** « Nouvelle conversation » : retour à l'accueil, sans dossier ; on écrit directement. */
+  function newSession() {
+    setSettingsOpen(false);
+    setViewing(null);
+    setProjectId(null);
+    closeArtifact();
+    setWelcomeFolder(null);
+    setHome(true);
+    // La zone de saisie de l'accueil prend le curseur, même si l'accueil était déjà affiché.
+    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.welcome-composer textarea')?.focus());
   }
 
   async function newProject() {
@@ -341,6 +350,7 @@ export function App() {
   }
 
   function openProject(id: string) {
+    setHome(false);
     setSettingsOpen(false);
     setViewing(null);
     setProjectId(id);
@@ -359,28 +369,29 @@ export function App() {
     setViewing(null);
     setProjectId(null);
     closeArtifact();
-    rememberFolder(cwd);
+    setHome(false);
     dispatch({ type: 'session-opened', sessionId, cwd, model: lastModel });
     if (firstText) void deliver({ id: sessionId, model, auto: lastModel === 'auto' }, firstText);
   }
 
-  // Dossier de travail proposé sur l'accueil : le dernier utilisé (changeable d'un clic).
-  const [lastFolder, setLastFolder] = useState<string | null>(() => readLastFolder(localStorage));
-  function rememberFolder(cwd: string) {
-    setLastFolder(cwd);
-    writeLastFolder(localStorage, cwd);
-  }
+  // Accueil : dossier de travail facultatif. Sans dossier, la conversation tourne dans le dossier « discussions » de l'app.
+  const [welcomeFolder, setWelcomeFolder] = useState<string | null>(null);
   async function pickWelcomeFolder() {
     const cwd = await window.claude.pickFolder();
-    if (cwd) rememberFolder(cwd);
+    if (cwd) setWelcomeFolder(cwd);
   }
-  /** Message écrit sur l'accueil : nouvelle conversation dans le dossier choisi (demandé s'il n'y en a pas). */
+  /** Message écrit sur l'accueil : nouvelle conversation dans le dossier choisi, ou sans dossier. */
   async function startFromWelcome(text: string) {
-    const cwd = lastFolder ?? (await window.claude.pickFolder());
-    if (cwd) await startIn(cwd, text);
+    try {
+      await startIn(welcomeFolder ?? (await window.claude.chatFolder()), text);
+      setWelcomeFolder(null);
+    } catch (err) {
+      setNotice(`Conversation impossible à démarrer : ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   function openHistory(folder: string, id: string, focusIndex?: number) {
+    setHome(false);
     closeArtifact();
     setSettingsOpen(false);
     const project = history.projects.find((p) => p.folder === folder);
@@ -425,6 +436,7 @@ export function App() {
   }
 
   function selectSession(sessionId: string) {
+    setHome(false);
     closeArtifact();
     setSettingsOpen(false);
     setViewing(null);
@@ -435,7 +447,7 @@ export function App() {
   shortcuts.current = {
     newSession: () => {
       setSettingsOpen(false);
-      void newSession();
+      newSession();
     },
     search: () => {
       if (collapsed) toggleSidebar();
@@ -443,7 +455,7 @@ export function App() {
       requestAnimationFrame(() => document.getElementById(HISTORY_SEARCH_ID)?.focus());
     },
     cycle: (step) => {
-      const shown = viewing || shownProject || settingsOpen ? null : state.activeId;
+      const shown = viewing || shownProject || settingsOpen || home ? null : state.activeId;
       const next = neighborSession(state.sessions.map((s) => s.id), shown, step);
       if (next) selectSession(next);
     },
@@ -578,7 +590,7 @@ export function App() {
     <div className={artifact && !settingsOpen && !shownProject ? 'app with-artifact' : 'app'}>
       <Sidebar
         sessions={state.sessions}
-        activeId={viewing || shownProject || settingsOpen ? null : state.activeId}
+        activeId={viewing || shownProject || settingsOpen || home ? null : state.activeId}
         limits={state.limits}
         onNew={() => {
           setSettingsOpen(false);
@@ -670,7 +682,7 @@ export function App() {
             />
           }
         />
-      ) : active ? (
+      ) : active && !home ? (
         <main className="session">
           <header className="topbar">
             <span className="topbar-title">
@@ -747,7 +759,7 @@ export function App() {
               commands={state.commands}
               sendKey={settings.sendKey}
               {...promptProps}
-              tools={<FolderChip folder={lastFolder} onPick={() => void pickWelcomeFolder()} />}
+              tools={<FolderChip folder={welcomeFolder} onPick={() => void pickWelcomeFolder()} onClear={() => setWelcomeFolder(null)} />}
             />
           }
         />

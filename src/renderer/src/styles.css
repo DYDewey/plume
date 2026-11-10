@@ -787,3 +787,6 @@ button.recent-card:hover { border-color: var(--border) !important; transform: tr
 .recent-card > .lucide { color: var(--muted); grid-row: span 2; }
 .recent-title { font-size: var(--fs-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-meta { font-size: var(--fs-xs); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-chip-wrap { display: inline-flex; align-items: center; gap: 2px; }
+.folder-chip-wrap.set button.folder-chip { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)) !important; }
+button.folder-clear { width: 22px; height: 22px; padding: 0; }

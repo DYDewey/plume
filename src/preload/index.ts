@@ -40,6 +40,7 @@ const api: ClaudeApi = {
   saveText: (defaultName, text) => ipcRenderer.invoke(IPC.saveText, defaultName, text),
   exportPdf: (defaultName) => ipcRenderer.invoke(IPC.exportPdf, defaultName),
   showArtifact: (html) => ipcRenderer.invoke(IPC.showArtifact, html),
+  chatFolder: () => ipcRenderer.invoke(IPC.chatFolder),
 };
 
 contextBridge.exposeInMainWorld('claude', api);

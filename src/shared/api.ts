@@ -57,6 +57,8 @@ export interface ClaudeApi {
   saveText(defaultName: string, text: string): Promise<string | null>;
   /** Imprime la conversation affichée en PDF (boîte « Enregistrer sous ») ; chemin ou null. */
   exportPdf(defaultName: string): Promise<string | null>;
+  /** Dossier des conversations « sans dossier » (%APPDATA%/mon-claude/discussions), créé si besoin. */
+  chatFolder(): Promise<string>;
   /** Confie une page d'artefact au main ; renvoie l'adresse artifact:// à mettre dans l'iframe. */
   showArtifact(html: string): Promise<string>;
 }
@@ -89,4 +91,5 @@ export const IPC = {
   saveText: 'export:save-text',
   exportPdf: 'export:pdf',
   showArtifact: 'artifact:show',
+  chatFolder: 'chat:folder',
 } as const;
