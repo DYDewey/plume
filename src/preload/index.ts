@@ -43,6 +43,7 @@ const api: ClaudeApi = {
   chatFolder: () => ipcRenderer.invoke(IPC.chatFolder),
   thumbnail: (path) => ipcRenderer.invoke(IPC.thumbnail, path),
   appVersion: () => ipcRenderer.invoke(IPC.appVersion),
+  getUsage: () => ipcRenderer.invoke(IPC.usage),
   checkUpdate: () => ipcRenderer.invoke(IPC.updateCheck),
   installUpdate: () => ipcRenderer.invoke(IPC.updateInstall),
   onUpdate: (cb) => {

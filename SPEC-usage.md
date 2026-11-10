@@ -26,3 +26,8 @@ Coût en $, historique/graphiques, notifications système, passation automatique
 - Au redémarrage de l'app, les jauges réapparaissent (grisées) avant tout message.
 - Après une réponse, une suggestion apparaît ; Tab la met dans la zone de saisie.
 - Tests Vitest sur le parser, le reducer et les calculs (%, couleur, heure de reset).
+
+## Jauges au lancement (2026-11-10)
+- Au démarrage puis toutes les 5 min : `GET https://api.anthropic.com/api/oauth/usage` (même source que `/usage` de Claude Code, en-tête `anthropic-beta: oauth-2025-04-20`). Aucun message envoyé, aucun quota consommé.
+- Jeton : `~/.claude/.credentials.json`, **lu seulement**, utilisé s'il reste valable au moins 1 min. Jamais renouvelé ni écrit (sinon la connexion de Claude Code changerait). Expiré ou hors ligne : on garde les jauges en cache, mises à jour à la 1re réponse comme avant.
+- L'API donne des pourcentages (81.0) et des dates ISO : convertis en 0..1 et secondes Unix (`shared/usage-api.ts`, testé).

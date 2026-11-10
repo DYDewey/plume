@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu, nativeTheme, protocol, shell } from 'electron
 import { ARTIFACT_CSP } from '../shared/artifacts';
 import { createArtifactStore } from './artifact-store';
 import { join } from 'node:path';
-import { registerClaudeIpc, registerExportIpc, registerHandoffIpc, registerHistoryIpc, registerOrganizeIpc, registerUpdateIpc } from './ipc';
+import { registerClaudeIpc, registerExportIpc, registerHandoffIpc, registerHistoryIpc, registerOrganizeIpc, registerUpdateIpc, registerUsageIpc } from './ipc';
 
 /** Hauteur de la barre de titre maison (doit égaler --titlebar-h dans styles.css). */
 const TITLEBAR_H = 40;
@@ -81,6 +81,7 @@ app.whenReady().then(() => {
   });
   registerExportIpc(artifacts);
   registerUpdateIpc();
+  registerUsageIpc();
   const sessions = registerClaudeIpc();
   registerHistoryIpc();
   registerHandoffIpc();

@@ -1,6 +1,6 @@
 import type { Route } from './auto-route';
 import type { ChatItem } from './chat-item';
-import type { BridgeEvent, PermissionDecision } from './events';
+import type { BridgeEvent, LimitWindow, PermissionDecision } from './events';
 import type { HistoryProject } from './history';
 import type { ModelChoice } from './model';
 import type { OrganizeData } from './organize';
@@ -65,6 +65,8 @@ export interface ClaudeApi {
   chatFolder(): Promise<string>;
   /** Miniature (data URL, 96 px de haut) d'une image jointe ; null si ce n'est pas une image lisible. */
   thumbnail(path: string): Promise<string | null>;
+  /** Jauges 5 h / 7 jours lues chez Anthropic (sans quota) ; null si hors ligne ou connexion expirée. */
+  getUsage(): Promise<{ fiveHour?: LimitWindow; sevenDay?: LimitWindow } | null>;
   /** Version de l'app (package.json). */
   appVersion(): Promise<string>;
   /** Cherche une nouvelle version sur GitHub (Releases) ; null s'il n'y en a pas. */
@@ -108,6 +110,7 @@ export const IPC = {
   chatFolder: 'chat:folder',
   thumbnail: 'files:thumb',
   appVersion: 'app:version',
+  usage: 'usage:get',
   updateCheck: 'update:check',
   updateInstall: 'update:install',
   updateEvent: 'update:event',

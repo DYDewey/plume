@@ -284,6 +284,20 @@ export function App() {
     };
   }, [organize.projects]);
 
+  // Jauges dès le lancement, puis toutes les 5 min : lues chez Anthropic, sans envoyer de message.
+  useEffect(() => {
+    const load = () =>
+      window.claude.getUsage().then(
+        (u) => {
+          if (u) dispatch({ type: 'rate-limits', sessionId: '', ...u });
+        },
+        () => {},
+      );
+    void load();
+    const timer = setInterval(() => void load(), 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Un seul abonnement pour toute l'app : chaque événement de claude devient une action du reducer.
   useEffect(() => window.claude.onEvent(dispatch), []);
 

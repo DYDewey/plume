@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { parseUsage, usableToken, USAGE_URL } from '../shared/usage-api';
 import { writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -322,4 +323,25 @@ export function registerUpdateIpc(): void {
   if (!app.isPackaged) return; // en dev : vérification manuelle seulement
   setTimeout(() => void check(), 15_000);
   setInterval(() => void check(), 6 * 60 * 60 * 1000);
+}
+
+/**
+ * Jauges de l'abonnement au lancement (et à la demande) : API « usage » d'Anthropic, comme /usage dans Claude Code.
+ * Le jeton de Claude Code est seulement LU (jamais renouvelé ni écrit) ; aucun message n'est envoyé.
+ */
+export function registerUsageIpc(): void {
+  ipcMain.handle(IPC.usage, async () => {
+    try {
+      const credentials: unknown = JSON.parse(readFileSync(join(homedir(), '.claude', '.credentials.json'), 'utf8'));
+      const token = usableToken(credentials, Date.now());
+      if (!token) return null;
+      const res = await fetch(USAGE_URL, {
+        headers: { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20', 'User-Agent': 'Plume' },
+        signal: AbortSignal.timeout(10_000),
+      });
+      return res.ok ? parseUsage(await res.json()) : null;
+    } catch {
+      return null; // hors ligne, fichier absent… : les jauges arriveront avec la 1re réponse
+    }
+  });
 }
