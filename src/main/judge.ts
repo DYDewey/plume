@@ -1,6 +1,7 @@
 import { appendFile } from 'node:fs/promises';
 import { judgeExcerpt, JUDGE_SYSTEM, parseJudge, type Route, type RuleResult } from '../shared/auto-route';
 import type { ModelChoice } from '../shared/model';
+import { cleanTitle, TITLE_SYSTEM } from '../shared/auto-title';
 import { GATEWAY_URL } from './router';
 
 /**
@@ -17,7 +18,8 @@ export interface JudgeDeps {
   url?: string;
 }
 
-export async function askJudge(text: string, deps: JudgeDeps): Promise<ModelChoice | null> {
+/** Un appel à Gemini via ccr ; renvoie le texte de la réponse, ou null en cas de souci. */
+async function askGemini(system: string, content: string, maxTokens: number, deps: JudgeDeps): Promise<string | null> {
   if (!deps.token) return null;
   const doFetch = deps.fetch ?? fetch;
   try {
@@ -31,23 +33,34 @@ export async function askJudge(text: string, deps: JudgeDeps): Promise<ModelChoi
       },
       body: JSON.stringify({
         model: JUDGE_MODEL,
-        // 5 coupait la réponse en plein mot (« ha ») : Gemini compte aussi sa réflexion interne.
-        max_tokens: 50,
+        max_tokens: maxTokens,
         temperature: 0,
-        system: JUDGE_SYSTEM,
-        messages: [{ role: 'user', content: `Message :\n"""\n${judgeExcerpt(text)}\n"""` }],
+        system,
+        messages: [{ role: 'user', content }],
       }),
       signal: AbortSignal.timeout(deps.timeoutMs ?? 4000),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { model?: unknown; content?: { type?: string; text?: unknown }[] };
-    // Si ccr a répondu avec un modèle Claude (bascule inattendue), on ne s'y fie pas.
+    // Si ccr a répondu avec un modèle Claude (bascule inattendue), on ne s'y fie pas : ça coûterait du quota.
     if (typeof data.model === 'string' && data.model.includes('claude')) return null;
     const answer = data.content?.find((c) => c.type === 'text')?.text;
-    return typeof answer === 'string' ? parseJudge(answer) : null;
+    return typeof answer === 'string' ? answer : null;
   } catch {
     return null; // passerelle arrêtée, délai dépassé, quota Gemini…
   }
+}
+
+export async function askJudge(text: string, deps: JudgeDeps): Promise<ModelChoice | null> {
+  // 5 coupait la réponse en plein mot (« ha ») : Gemini compte aussi sa réflexion interne.
+  const answer = await askGemini(JUDGE_SYSTEM, `Message :\n"""\n${judgeExcerpt(text)}\n"""`, 50, deps);
+  return answer === null ? null : parseJudge(answer);
+}
+
+/** Titre court de la conversation, ou null si le but n'est pas encore clair (ou panne). */
+export async function askTitle(excerpt: string, deps: JudgeDeps): Promise<string | null> {
+  const answer = await askGemini(TITLE_SYSTEM, `Conversation :\n"""\n${excerpt}\n"""`, 80, { timeoutMs: 8000, ...deps });
+  return answer === null ? null : cleanTitle(answer);
 }
 
 /** Une ligne par décision, pour améliorer les règles plus tard (fichier local, jamais envoyé). */

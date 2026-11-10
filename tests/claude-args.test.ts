@@ -7,7 +7,7 @@ const base = [
   '--output-format', 'stream-json',
   '--verbose',
   '--include-partial-messages',
-  '--permission-mode', 'acceptEdits',
+  '--permission-mode', 'auto',
   '--permission-prompt-tool', 'stdio',
   '--prompt-suggestions', 'true',
 ];
@@ -38,6 +38,11 @@ describe('buildClaudeArgs', () => {
   it('ajoute --model quand un modèle est choisi', () => {
     expect(buildClaudeArgs({ sessionId: 'abc', model: 'sonnet' })).toEqual([...base, '--model', 'sonnet', '--session-id', 'abc']);
     expect(buildClaudeArgs({ sessionId: 'abc', resume: true, model: 'haiku' })).toEqual([...base, '--model', 'haiku', '--resume', 'abc']);
+  });
+
+  it('utilise le mode d’autorisation réglé', () => {
+    const args = buildClaudeArgs({ sessionId: 'abc', permissionMode: 'manual' });
+    expect(args[args.indexOf('--permission-mode') + 1]).toBe('manual');
   });
 
   it("« Par défaut » : pas d'option --model", () => {

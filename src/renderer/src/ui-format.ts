@@ -30,6 +30,36 @@ export function isSidebarToggle(e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'shif
   return e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'b';
 }
 
+/** Ctrl+, : ouvrir ou fermer les paramètres. */
+export function isSettingsShortcut(e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey'>): boolean {
+  return e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && e.key === ',';
+}
+
+type Keys = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey'>;
+
+/** Ctrl+<lettre> seul : N nouvelle conversation, K recherche. */
+export function isCtrlLetter(e: Keys, letter: string): boolean {
+  return e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === letter;
+}
+
+/** Ctrl+Tab : +1 (session suivante) ; Ctrl+Maj+Tab : -1 (précédente) ; sinon 0. */
+export function tabDirection(e: Keys): -1 | 0 | 1 {
+  if (!e.ctrlKey || e.altKey || e.metaKey || e.key !== 'Tab') return 0;
+  return e.shiftKey ? -1 : 1;
+}
+
+/** Session voisine dans la liste, en bouclant ; null s'il n'y en a pas d'autre. */
+export function neighborSession(ids: string[], current: string | null, step: -1 | 1): string | null {
+  if (ids.length === 0) return null;
+  const at = current ? ids.indexOf(current) : -1;
+  if (at === -1) return ids[step === 1 ? 0 : ids.length - 1];
+  if (ids.length === 1) return null;
+  return ids[(at + step + ids.length) % ids.length];
+}
+
+/** Champ de recherche de l'historique (Ctrl+K y met le curseur). */
+export const HISTORY_SEARCH_ID = 'history-search';
+
 // Barre latérale repliée ou non, retenue entre deux lancements de l'app.
 const COLLAPSED_KEY = 'mon-claude:sidebar-collapsed';
 

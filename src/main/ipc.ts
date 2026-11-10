@@ -1,13 +1,18 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification } from 'electron';
+import { notificationBody } from '../shared/notify';
+import { cleanFileName } from '../shared/export';
+import { loadSettings, saveSettings } from './settings-store';
 import { IPC } from '../shared/api';
 import { isPermissionDecision } from '../shared/events';
 import { isModelChoice } from '../shared/model';
 import { decideRoute, ruleRoute } from '../shared/auto-route';
-import { askJudge, logRoute } from './judge';
+import { askJudge, askTitle, logRoute } from './judge';
+import { titleExcerpt } from '../shared/auto-title';
 import { isSessionId } from './claude-args';
 import { validQuery } from '../shared/search';
 import { emptyOrganize, parseOrganize, type OrganizeData } from '../shared/organize';
@@ -23,6 +28,20 @@ import { lastLimits, lastResponder, routerLogPath } from './router-log';
 import { SessionManager } from './session-manager';
 import type { BridgeEvent } from '../shared/events';
 
+/** Réponse finie pendant qu'on fait autre chose : notification Windows ; un clic ramène la fenêtre sur la session. */
+function notifyDone(sessionId: string, result: string | undefined): void {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win || win.isFocused() || !Notification.isSupported()) return;
+  const n = new Notification({ title: 'Claude a répondu', body: notificationBody(result), silent: false });
+  n.on('click', () => {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+    win.webContents.send(IPC.focusSession, sessionId);
+  });
+  n.show();
+}
+
 /** Copie de organize.json tenue par main : les instructions des projets y sont lues à chaque lancement de claude. */
 let organize: OrganizeData = emptyOrganize();
 
@@ -30,6 +49,15 @@ export function registerClaudeIpc(): SessionManager {
   // Routeur ccr (secours Gemini) : choisi juste avant chaque lancement, claude direct s'il ne répond pas.
   const userData = app.getPath('userData');
   let routerEnabled = loadRouterEnabled(userData);
+  // Réglages : le thème choisi pilote nativeTheme, que le CSS et les boutons Windows suivent tout seuls.
+  let settings = loadSettings(userData);
+  nativeTheme.themeSource = settings.theme;
+  ipcMain.handle(IPC.settingsGet, () => settings);
+  ipcMain.handle(IPC.settingsSet, (_e, patch: unknown) => {
+    settings = saveSettings(userData, settings, patch);
+    nativeTheme.themeSource = settings.theme;
+    return settings;
+  });
   const cli = routerCliPath();
   const chooseLauncher = createRouterChooser({
     enabled: () => routerEnabled,
@@ -52,6 +80,7 @@ export function registerClaudeIpc(): SessionManager {
   const manager = new SessionManager(
     (event) => {
       send(event);
+      if (event.type === 'turn-end' && settings.notify) notifyDone(event.sessionId, event.result);
       // Via le routeur, le flux garde le nom du modèle demandé et n'a plus les jauges : on lit tout ça dans le journal ccr.
       // Petit délai : ccr écrit la ligne du journal juste après la fin du flux.
       if (event.type === 'turn-end' && launcher !== DIRECT) {
@@ -63,7 +92,11 @@ export function registerClaudeIpc(): SessionManager {
         }, 1000);
       }
     },
-    { promptFor: (cwd) => promptForCwd(organize, cwd, existsSync), launcher: () => launcher },
+    {
+      promptFor: (cwd) => promptForCwd(organize, cwd, existsSync),
+      launcher: () => launcher,
+      permissionMode: () => settings.permissionMode,
+    },
   );
 
   ipcMain.handle(IPC.start, async (_e, cwd: unknown, resumeId: unknown, model: unknown, forkFrom: unknown) => {
@@ -81,6 +114,14 @@ export function registerClaudeIpc(): SessionManager {
     if (typeof enabled !== 'boolean') throw new Error('Valeur invalide');
     routerEnabled = enabled;
     saveRouterEnabled(userData, enabled);
+  });
+
+  // Titre automatique : même juge Gemini gratuit, seulement si ccr est actif (jamais de quota Claude).
+  ipcMain.handle(IPC.title, async (_e, userTexts: unknown, lastReply: unknown) => {
+    if (!Array.isArray(userTexts) || !userTexts.every((t) => typeof t === 'string') || typeof lastReply !== 'string') {
+      throw new Error('Conversation invalide');
+    }
+    return askTitle(titleExcerpt(userTexts, lastReply), { token: launcher === DIRECT ? null : readRouterToken() });
   });
 
   // Mode Auto : règles + juge Gemini (via ccr, seulement s'il est actif) → modèle du prochain message.
@@ -187,4 +228,53 @@ export function registerOrganizeIpc(): void {
     return saveOrganize(dir, clean);
   });
   ipcMain.handle(IPC.pathsExist, (_e, paths: unknown) => pathsExist(paths));
+}
+
+/** Nom de fichier proposé : sans caractère interdit par Windows, jamais vide. */
+function safeName(name: unknown, fallback: string): string {
+  const clean = typeof name === 'string' ? cleanFileName(name).slice(0, 120).trim() : '';
+  return clean || fallback;
+}
+
+const FILTERS: Record<string, { name: string; extensions: string[] }> = {
+  md: { name: 'Markdown', extensions: ['md'] },
+  html: { name: 'Page HTML', extensions: ['html'] },
+  svg: { name: 'Image SVG', extensions: ['svg'] },
+  mmd: { name: 'Diagramme Mermaid', extensions: ['mmd'] },
+  pdf: { name: 'PDF', extensions: ['pdf'] },
+};
+
+async function askSavePath(e: Electron.IpcMainInvokeEvent, name: string): Promise<string | null> {
+  const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase() ?? '';
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const options = {
+    title: 'Enregistrer sous',
+    defaultPath: join(app.getPath('documents'), name),
+    filters: FILTERS[ext] ? [FILTERS[ext]] : [],
+  };
+  const res = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+  return res.canceled || !res.filePath ? null : res.filePath;
+}
+
+export function registerExportIpc(artifacts: { put(html: string): string }): void {
+  ipcMain.handle(IPC.saveText, async (e, name: unknown, text: unknown) => {
+    if (typeof text !== 'string') throw new Error('Texte invalide');
+    const path = await askSavePath(e, safeName(name, 'conversation.md'));
+    if (path) await writeFile(path, text, 'utf8');
+    return path;
+  });
+
+  // La feuille @media print de l'app ne garde que la conversation affichée.
+  ipcMain.handle(IPC.exportPdf, async (e, name: unknown) => {
+    const path = await askSavePath(e, safeName(name, 'conversation.pdf'));
+    if (!path) return null;
+    const pdf = await e.sender.printToPDF({ printBackground: true, pageSize: 'A4', margins: { top: 0.6, bottom: 0.6, left: 0.6, right: 0.6 } });
+    await writeFile(path, pdf);
+    return path;
+  });
+
+  ipcMain.handle(IPC.showArtifact, (_e, html: unknown) => {
+    if (typeof html !== 'string' || html.length > 5_000_000) throw new Error('Artefact invalide');
+    return artifacts.put(html);
+  });
 }

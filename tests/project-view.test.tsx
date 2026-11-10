@@ -43,7 +43,7 @@ describe('ProjectView', () => {
   it('dossier disparu : nouvelle session désactivée et message', () => {
     const html = render(['D:\\Cours\\react']);
     expect(html).toContain('Dossier introuvable');
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>[^]*?Nouvelle session/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>[^]*?Nouvelle conversation/);
   });
 
   it('dossier présent : nouvelle session active', () => {

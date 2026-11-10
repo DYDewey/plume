@@ -46,7 +46,7 @@ describe('ProjectsList', () => {
   it('un projet par ligne, avec son bouton de nouvelle session, replié par défaut', () => {
     const html = render(withReact);
     expect(html).toContain('react');
-    expect(html).toContain('aria-label="Nouvelle session dans « react »"');
+    expect(html).toContain('aria-label="Nouvelle conversation dans « react »"');
     expect(html).not.toContain('Récente');
   });
 
@@ -67,6 +67,6 @@ describe('ProjectsList', () => {
   it('dossier disparu : ligne grisée et nouvelle session désactivée', () => {
     const html = render(withReact, undefined, { missing: ['D:\\Cours\\react'] });
     expect(html).toContain('project-row missing');
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Nouvelle session/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Nouvelle conversation/);
   });
 });

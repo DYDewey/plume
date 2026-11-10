@@ -1,6 +1,9 @@
-import { Paperclip, X } from 'lucide-react';
-import { useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { ArrowUp, NotebookTabs, Paperclip, Square, X } from 'lucide-react';
+import { useCallback, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { addAttachments, canSend, droppedPaths, fileName, imageExt, withAttachments } from '../../../shared/attachments';
+import type { SendKey } from '../../../shared/settings';
+import type { SavedPrompt } from '../../../shared/prompts';
+import { PromptsPanel } from './prompts-panel';
 import { matchCommands, SlashMenu } from './slash-menu';
 
 interface Props {
@@ -19,6 +22,18 @@ interface Props {
   tools?: ReactNode;
   /** Prochain message proposé par claude : affiché en gris, Tab le recopie. */
   suggestion?: string;
+  /** Réglage : Entrée envoie (Maj+Entrée = ligne), ou Ctrl+Entrée envoie (Entrée = ligne). */
+  sendKey?: SendKey;
+  /** Modèles de messages enregistrés (panneau des prompts) ; absent : pas de panneau. */
+  prompts?: SavedPrompt[];
+  onSavePrompt?: (text: string) => void;
+  onDeletePrompt?: (id: string) => void;
+}
+
+/** Vrai si cette touche doit envoyer le message. */
+export function isSendKey(e: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'ctrlKey'>, sendKey: SendKey): boolean {
+  if (e.key !== 'Enter') return false;
+  return sendKey === 'ctrl-enter' ? e.ctrlKey : !e.shiftKey && !e.ctrlKey;
 }
 
 export function AttachmentChips({ files, onRemove }: { files: string[]; onRemove: (path: string) => void }) {
@@ -37,18 +52,41 @@ export function AttachmentChips({ files, onRemove }: { files: string[]; onRemove
   );
 }
 
-export function Composer({ running, onSend, onStop, onPickFiles, pathForFile, onSavePasted, commands, suggestion, tools }: Props) {
+export function Composer({ running, onSend, onStop, onPickFiles, pathForFile, onSavePasted, commands, suggestion, tools, sendKey = 'enter', prompts, onSavePrompt, onDeletePrompt }: Props) {
+  const [panel, setPanel] = useState(false);
+  const closePanel = useCallback(() => setPanel(false), []);
   const [text, setText] = useState('');
   const [files, setFiles] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
   const [selected, setSelected] = useState(0);
   const [menuClosed, setMenuClosed] = useState(false);
   const matches = menuClosed ? [] : matchCommands(text, commands);
+  // La zone de saisie grandit avec le texte (plafond en CSS : max-height), puis défile.
+  const area = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const t = area.current;
+    if (!t) return;
+    t.style.height = 'auto';
+    t.style.height = `${t.scrollHeight}px`;
+  }, [text]);
 
   function change(value: string) {
     setText(value);
     setSelected(0);
     setMenuClosed(false);
+  }
+
+  /** Panneau des prompts : une commande se met devant le texte, un modèle s'ajoute à la suite. */
+  function insert(snippet: string) {
+    setPanel(false);
+    if (snippet.startsWith('/')) change(snippet + text.replace(/^\/\S+\s*/, ''));
+    else change(text.trim() ? `${text.replace(/\s+$/, '')}\n${snippet}` : snippet);
+    requestAnimationFrame(() => {
+      const t = area.current;
+      if (!t) return;
+      t.focus();
+      t.setSelectionRange(t.value.length, t.value.length);
+    });
   }
 
   function pick(name: string) {
@@ -121,45 +159,77 @@ export function Composer({ running, onSend, onStop, onPickFiles, pathForFile, on
         return;
       }
     }
-    // Entrée envoie, Maj+Entrée fait un saut de ligne.
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // Selon le réglage : Entrée ou Ctrl+Entrée envoie ; l'autre combinaison fait un saut de ligne.
+    if (isSendKey(e, sendKey)) {
       e.preventDefault();
       submit();
+    } else if (e.key === 'Enter' && e.ctrlKey) {
+      // Ctrl+Entrée n'insère rien tout seul dans un textarea : on ajoute la ligne nous-mêmes.
+      e.preventDefault();
+      const t = e.currentTarget;
+      const at = t.selectionStart;
+      change(text.slice(0, at) + '\n' + text.slice(t.selectionEnd));
+      requestAnimationFrame(() => t.setSelectionRange(at + 1, at + 1));
     }
   }
 
   return (
-    <div
-      className={dragging ? 'composer dragging' : 'composer'}
-      onDragOver={onDragOver}
-      onDragLeave={() => setDragging(false)}
-      onDrop={onDrop}
-    >
-      {matches.length > 0 && <SlashMenu items={matches} selected={selected} onPick={pick} />}
-      <AttachmentChips files={files} onRemove={(path) => setFiles((current) => current.filter((p) => p !== path))} />
-      <textarea
-        value={text}
-        onChange={(e) => change(e.target.value)}
-        onKeyDown={onKeyDown}
-        onPaste={onPaste}
-        disabled={running}
-        placeholder={
-          running ? 'Claude répond…' : suggestion ? `${suggestion}   (Tab pour reprendre)` : 'Écris ton message (Entrée pour envoyer)'
-        }
-        rows={3}
-        autoFocus
-      />
-      <button className="btn-icon" onClick={pickFiles} disabled={running} title="Joindre des fichiers" aria-label="Joindre des fichiers">
-        <Paperclip size={18} aria-hidden />
-      </button>
-      {tools}
-      {running ? (
-        <button onClick={onStop}>Stop</button>
-      ) : (
-        <button onClick={submit} disabled={!canSend(text, files)}>
-          Envoyer
-        </button>
-      )}
+    <div className="composer-dock">
+      <div
+        className={dragging ? 'composer dragging' : 'composer'}
+        onDragOver={onDragOver}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+      >
+        {panel && prompts && onSavePrompt && onDeletePrompt && (
+          <PromptsPanel
+            prompts={prompts}
+            commands={commands}
+            draft={text}
+            onInsert={insert}
+            onSave={onSavePrompt}
+            onDelete={onDeletePrompt}
+            onClose={closePanel}
+          />
+        )}
+        {matches.length > 0 && <SlashMenu items={matches} selected={selected} onPick={pick} />}
+        <AttachmentChips files={files} onRemove={(path) => setFiles((current) => current.filter((p) => p !== path))} />
+        <textarea
+          ref={area}
+          value={text}
+          onChange={(e) => change(e.target.value)}
+          onKeyDown={onKeyDown}
+          onPaste={onPaste}
+          disabled={running}
+          placeholder={
+            running ? 'Claude répond…' : suggestion ? `${suggestion}   (Tab pour reprendre)` : `Écris ton message (${sendKey === 'ctrl-enter' ? 'Ctrl+Entrée' : 'Entrée'} pour envoyer)`
+          }
+          rows={1}
+          autoFocus
+        />
+        <div className="composer-bar">
+          <button className="btn-icon" onClick={pickFiles} disabled={running} title="Joindre des fichiers" aria-label="Joindre des fichiers">
+            <Paperclip size={18} aria-hidden />
+          </button>
+          {prompts && (
+            <button className={panel ? 'btn-icon prompts-toggle on' : 'btn-icon prompts-toggle'} onClick={() => setPanel((o) => !o)} disabled={running}
+              title="Prompts et skills" aria-label="Prompts et skills" aria-expanded={panel}>
+              <NotebookTabs size={18} aria-hidden />
+            </button>
+          )}
+          {tools}
+          <span className="composer-spacer" />
+          {running ? (
+            <button className="send-btn stop" onClick={onStop} aria-label="Arrêter la réponse" title="Arrêter">
+              <Square size={14} aria-hidden fill="currentColor" />
+            </button>
+          ) : (
+            <button className="send-btn" onClick={submit} disabled={!canSend(text, files)} aria-label="Envoyer" title="Envoyer">
+              <ArrowUp size={18} aria-hidden />
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

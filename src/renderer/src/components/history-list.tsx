@@ -3,8 +3,9 @@ import { useState } from 'react';
 import type { HistoryProject, HistorySession } from '../../../shared/history';
 import type { SearchHit } from '../../../shared/search';
 import { displayTitle, emptyOrganize, sessionKey, type OrganizeData } from '../../../shared/organize';
-import { filterHistory, folderLabel } from '../ui-format';
+import { filterHistory, folderLabel, HISTORY_SEARCH_ID } from '../ui-format';
 import { ago } from '../usage-format';
+import { groupByDate, isTechnicalProject, shortWhen } from '../history-groups';
 import { FavoriteButton } from './favorite-button';
 import { SearchResults, useContentSearch } from './search-results';
 import { RenameButton, RenameField } from './rename-field';
@@ -26,6 +27,8 @@ interface Props {
   search?: (query: string) => Promise<SearchHit[]>;
   /** Pour les tests : recherche déjà saisie. */
   initialQuery?: string;
+  /** Réglage : montrer aussi les sessions techniques (claude-mem…). */
+  showTechnical?: boolean;
 }
 
 /** Dernier dossier du vrai chemin (« mon-claude »), sinon le nom encodé du dossier. */
@@ -48,13 +51,15 @@ export function HistoryList({
   onRename = () => {},
   initialQuery = '',
   search = searchInMain,
+  showTechnical = false,
 }: Props) {
   const [query, setQuery] = useState(initialQuery);
   /** Clé de la session en cours de renommage. */
   const [editing, setEditing] = useState<string | null>(null);
   const titleOf = (folder: string, s: HistorySession) => displayTitle(s, organize.sessions[sessionKey(folder, s.id)]);
   const searching = query.trim() !== '';
-  const shown = filterHistory(projects, query, titleOf);
+  const visible = showTechnical ? projects : projects.filter((p) => !isTechnicalProject(p));
+  const shown = filterHistory(visible, query, titleOf);
   const contentResults = useContentSearch(query, search);
   return (
     <section className="history">
@@ -68,6 +73,7 @@ export function HistoryList({
         <Search size={14} aria-hidden />
         <input
           type="search"
+          id={HISTORY_SEARCH_ID}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Rechercher"
@@ -75,49 +81,45 @@ export function HistoryList({
         />
       </label>
       {searching && shown.length === 0 && <p className="muted no-result">Aucun résultat</p>}
-      {shown.map((p) => {
-        const hasOpen = searching || openKey?.startsWith(`${p.folder}/`);
-        return (
-          // <details> se replie tout seul ; on force l'ouverture pour le projet de la session affichée et pendant une recherche.
-          <details key={p.folder} open={hasOpen || undefined}>
-            <summary title={p.path ?? p.folder}>
-              {projectLabel(p)} <span className="muted">({p.sessions.length})</span>
-            </summary>
-            <ul>
-              {p.sessions.map((s) => {
-                const key = sessionKey(p.folder, s.id);
-                const title = titleOf(p.folder, s);
-                return (
-                  <li
-                    key={s.id}
-                    className={openKey === key ? 'active' : undefined}
-                    onClick={() => onOpen(p.folder, s.id)}
-                    title={title}
-                  >
-                    {editing === key ? (
-                      <RenameField
-                        initial={title}
-                        onSave={(name) => {
-                          setEditing(null);
-                          onRename(key, name);
-                        }}
-                        onCancel={() => setEditing(null)}
-                      />
-                    ) : (
-                      <>
+      {groupByDate(shown, now).map((group) => (
+        <div key={group.label} className="history-group">
+          <div className="history-group-label">{group.label}</div>
+          <ul>
+            {group.rows.map(({ folder, session: s, project }) => {
+              const key = sessionKey(folder, s.id);
+              const title = titleOf(folder, s);
+              return (
+                <li
+                  key={key}
+                  className={openKey === key ? 'history-item active' : 'history-item'}
+                  onClick={() => onOpen(folder, s.id)}
+                  title={`${title}\n${project} · ${ago(s.lastAt, now)}`}
+                >
+                  {editing === key ? (
+                    <RenameField
+                      initial={title}
+                      onSave={(name) => {
+                        setEditing(null);
+                        onRename(key, name);
+                      }}
+                      onCancel={() => setEditing(null)}
+                    />
+                  ) : (
+                    <>
+                      <span className="history-text">
                         <span className="sidebar-title">{title}</span>
-                        <span className="muted history-date">{ago(s.lastAt, now)}</span>
-                        <RenameButton onClick={() => setEditing(key)} />
-                        <FavoriteButton on={!!organize.sessions[key]?.favorite} onToggle={() => onToggleFavorite(key)} />
-                      </>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </details>
-        );
-      })}
+                        <span className="history-meta">{project} · {shortWhen(s.lastAt, now)}</span>
+                      </span>
+                      <RenameButton onClick={() => setEditing(key)} />
+                      <FavoriteButton on={!!organize.sessions[key]?.favorite} onToggle={() => onToggleFavorite(key)} />
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
       <SearchResults results={contentResults} organize={organize} onOpen={onOpen} />
     </section>
   );

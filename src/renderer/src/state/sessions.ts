@@ -56,7 +56,9 @@ export type ChatAction =
   | { type: 'session-closed'; sessionId: string }
   | { type: 'select'; sessionId: string }
   | { type: 'user-sent'; sessionId: string; text: string }
-  | { type: 'user-interrupted'; sessionId: string };
+  | { type: 'user-interrupted'; sessionId: string }
+  /** Titre choisi par le juge Gemini (ou renommage). */
+  | { type: 'titled'; sessionId: string; title: string };
 
 export const initialState: ChatState = { sessions: [], activeId: null, commands: [] };
 
@@ -83,6 +85,8 @@ export function sessionsReducer(state: ChatState, action: ChatAction): ChatState
         status: 'running',
         suggestion: undefined,
       }));
+    case 'titled':
+      return { ...state, sessions: patch(state, action.sessionId, () => ({ title: action.title })) };
     case 'user-interrupted':
       // Le statut reste « running » : c'est le turn-end envoyé par claude qui rend la main.
       return update(state, action.sessionId, (s) => ({ items: [...s.items, { kind: 'stopped' }] }));

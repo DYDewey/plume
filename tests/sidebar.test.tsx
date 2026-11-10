@@ -14,9 +14,9 @@ const render = (collapsed: boolean) =>
   );
 
 describe('Sidebar', () => {
-  it('dépliée : section « En cours », session qui répond marquée, historique et bouton pour replier', () => {
+  it('dépliée : section « Ouvertes », session qui répond marquée, historique et bouton pour replier', () => {
     const html = render(false);
-    expect(html).toContain('En cours');
+    expect(html).toContain('Ouvertes');
     expect(html).toContain('Ma session');
     expect(html).toContain('class="indicator running"');
     expect(html).toContain('id="historique"');
@@ -27,7 +27,7 @@ describe('Sidebar', () => {
     const html = render(true);
     expect(html).toContain('class="sidebar collapsed"');
     expect(html).toContain('aria-label="Déplier la barre latérale"');
-    expect(html).toContain('aria-label="Nouvelle session"');
+    expect(html).toContain('aria-label="Nouvelle conversation"');
     expect(html).not.toContain('Ma session');
     expect(html).not.toContain('id="historique"');
   });

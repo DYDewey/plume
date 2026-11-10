@@ -36,6 +36,17 @@ describe('parseSession', () => {
     expect([...title]).toHaveLength(60);
   });
 
+  it('commande « ! » : affichée comme tapée, sortie brute masquée, jamais prise comme titre', () => {
+    const u = (content: string) => JSON.stringify({ type: 'user', message: { role: 'user', content } });
+    const s = parseSession([
+      u('<bash-input>ls -la</bash-input>'),
+      u('<bash-stdout>fichier.txt</bash-stdout><bash-stderr></bash-stderr>'),
+      u('Range ce dossier'),
+    ]);
+    expect(s.items).toEqual([{ kind: 'user', text: '! ls -la' }, { kind: 'user', text: 'Range ce dossier' }]);
+    expect(s.title).toBe('Range ce dossier');
+  });
+
   it('titre : « Sans titre » si aucun message', () => {
     expect(parseSession(['{"type":"mode"}', '']).title).toBe('Sans titre');
   });

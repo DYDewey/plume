@@ -63,7 +63,7 @@ export function ProjectsList({
               active ||
               sessions.some((e) => openKey === sessionKey(e.project.folder, e.session.id));
             const folderMissing = missing.has(project.folder);
-            const newLabel = `Nouvelle session dans « ${project.name} »`;
+            const newLabel = `Nouvelle conversation dans « ${project.name} »`;
             const rowClass = ['project-row', active && 'active', folderMissing && 'missing'].filter(Boolean).join(' ');
             return (
               <li key={id} className="project-item">

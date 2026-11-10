@@ -1,5 +1,5 @@
-import { BookOpen, Play, TriangleAlert } from 'lucide-react';
-import { useState } from 'react';
+import { BookOpen, FolderX, TriangleAlert } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import type { ChatItem } from '../../../shared/chat-item';
 import { folderLabel } from '../ui-format';
 import { ChatView } from './chat-view';
@@ -18,10 +18,12 @@ interface Props {
   onRename?: (title: string) => void;
   /** Message trouvé par la recherche : on y défile et on le surligne. */
   focusIndex?: number;
-  /** Absent : pas de bouton « Continuer ». */
-  onContinue?: () => void;
-  /** Le dossier de la session n'existe plus : impossible de continuer. */
+  /** Zone de saisie : écrire reprend la conversation (dans une copie). Absente : lecture seule. */
+  composer?: ReactNode;
+  /** Le dossier de la session n'existe plus : impossible de reprendre. */
   folderMissing?: boolean;
+  /** Boutons en bout de barre (export). */
+  actions?: ReactNode;
 }
 
 /** Nom du dossier à côté du titre (chemin complet en infobulle), sauf s'il répète le titre. */
@@ -35,8 +37,9 @@ export function TopbarFolder({ title, path }: { title: string; path: string }) {
   );
 }
 
-// Ancienne session relue depuis ~/.claude/projects/ : même affichage que le chat, sans zone de saisie.
-export function HistoryView({ title, path, items, error, favorite = false, onToggleFavorite, onRename, focusIndex, onContinue, folderMissing = false }: Props) {
+// Ancienne session relue depuis ~/.claude/projects/ : même affichage que le chat.
+// Avec une zone de saisie, il suffit d'écrire pour la reprendre (l'original reste intact).
+export function HistoryView({ title, path, items, error, favorite = false, onToggleFavorite, onRename, focusIndex, composer, folderMissing = false, actions }: Props) {
   const [editing, setEditing] = useState(false);
   return (
     <main className="session">
@@ -58,17 +61,8 @@ export function HistoryView({ title, path, items, error, favorite = false, onTog
         )}
         {onRename && !editing && <RenameButton onClick={() => setEditing(true)} />}
         {onToggleFavorite && <FavoriteButton on={favorite} onToggle={onToggleFavorite} />}
-        <span className="readonly"><BookOpen size={14} aria-hidden /> Lecture seule</span>
-        {onContinue && (
-          <button
-            className="btn-secondary btn-continue"
-            onClick={onContinue}
-            disabled={folderMissing || !items}
-            title={folderMissing ? 'Dossier introuvable' : 'Reprendre dans une copie : cette conversation reste intacte'}
-          >
-            <Play size={14} aria-hidden /> Continuer
-          </button>
-        )}
+        {(!composer || folderMissing) && <span className="readonly"><BookOpen size={14} aria-hidden /> Lecture seule</span>}
+        {actions}
       </header>
       {error ? (
         <div className="chat">
@@ -81,6 +75,9 @@ export function HistoryView({ title, path, items, error, favorite = false, onTog
           <div className="msg muted">Chargement…</div>
         </div>
       )}
+      {composer && items && !error && (folderMissing ? (
+        <p className="resume-note"><FolderX size={14} aria-hidden /> Dossier introuvable : cette conversation ne peut plus être reprise.</p>
+      ) : composer)}
     </main>
   );
 }

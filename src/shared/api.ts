@@ -5,6 +5,7 @@ import type { HistoryProject } from './history';
 import type { ModelChoice } from './model';
 import type { OrganizeData } from './organize';
 import type { SearchHit } from './search';
+import type { Settings } from './settings';
 
 // API exposée au renderer sous `window.claude` par le preload.
 export interface ClaudeApi {
@@ -27,6 +28,8 @@ export interface ClaudeApi {
   setModel(sessionId: string, model: ModelChoice | undefined): Promise<void>;
   /** Mode Auto : modèle conseillé pour ce message (règles + juge Gemini gratuit). */
   routeMessage(text: string, current?: ModelChoice, contextUsed?: number): Promise<Route>;
+  /** Titre court proposé par le juge Gemini ; null si le but n'est pas encore clair ou si ccr est absent. */
+  titleSession(userTexts: string[], lastReply: string): Promise<string | null>;
   /** Renvoie la fonction de désabonnement. */
   onEvent(cb: (event: BridgeEvent) => void): () => void;
   /** Anciennes sessions de ~/.claude/projects/, en lecture seule. */
@@ -44,6 +47,18 @@ export interface ClaudeApi {
   /** Interrupteur « secours Gemini » (routeur ccr) ; pris en compte au prochain lancement de session. */
   getRouter(): Promise<boolean>;
   setRouter(enabled: boolean): Promise<void>;
+  /** Réglages de l'app (%APPDATA%/mon-claude/settings.json). */
+  getSettings(): Promise<Settings>;
+  /** Enregistre les champs valides et renvoie les réglages complets. */
+  setSettings(patch: Partial<Settings>): Promise<Settings>;
+  /** Clic sur la notification « réponse terminée » : session à afficher. Renvoie le désabonnement. */
+  onFocusSession(cb: (sessionId: string) => void): () => void;
+  /** Boîte « Enregistrer sous » puis écrit le texte ; renvoie le chemin, ou null si annulé. */
+  saveText(defaultName: string, text: string): Promise<string | null>;
+  /** Imprime la conversation affichée en PDF (boîte « Enregistrer sous ») ; chemin ou null. */
+  exportPdf(defaultName: string): Promise<string | null>;
+  /** Confie une page d'artefact au main ; renvoie l'adresse artifact:// à mettre dans l'iframe. */
+  showArtifact(html: string): Promise<string>;
 }
 
 export const IPC = {
@@ -57,6 +72,7 @@ export const IPC = {
   stop: 'claude:stop',
   setModel: 'session:set-model',
   route: 'session:route',
+  title: 'session:title',
   event: 'claude:event',
   historyList: 'history:list',
   historyRead: 'history:read',
@@ -67,4 +83,10 @@ export const IPC = {
   pathsExist: 'paths:exist',
   routerGet: 'router:get',
   routerSet: 'router:set',
+  settingsGet: 'settings:get',
+  settingsSet: 'settings:set',
+  focusSession: 'app:focus-session',
+  saveText: 'export:save-text',
+  exportPdf: 'export:pdf',
+  showArtifact: 'artifact:show',
 } as const;

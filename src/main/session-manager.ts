@@ -2,6 +2,7 @@ import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:chil
 import { randomUUID } from 'node:crypto';
 import type { BridgeEvent, PermissionDecision, PermissionSuggestion } from '../shared/events';
 import type { ModelChoice } from '../shared/model';
+import type { PermissionMode } from '../shared/settings';
 import { buildClaudeArgs } from './claude-args';
 import type { Launcher } from './router';
 import { createStreamParser } from './stream-parser';
@@ -15,6 +16,8 @@ export interface SessionManagerOptions {
   launcher?: () => Launcher;
   /** Texte à ajouter au prompt système pour une session lancée dans `cwd` (instructions du projet), relu à chaque lancement. */
   promptFor?: (cwd: string) => string | null;
+  /** Réglage « Autorisations », relu à chaque lancement (défaut : auto). */
+  permissionMode?: () => PermissionMode;
 }
 
 const DENIED = "Refusé par l'utilisateur";
@@ -63,7 +66,10 @@ export class SessionManager {
     const appendSystemPrompt = this.options.promptFor?.(cwd) ?? undefined;
     const args = [
       ...prefixArgs,
-      ...buildClaudeArgs({ sessionId, resume, forkFrom: this.forks.get(sessionId), model, appendSystemPrompt }),
+      ...buildClaudeArgs({
+        sessionId, resume, forkFrom: this.forks.get(sessionId), model, appendSystemPrompt,
+        permissionMode: this.options.permissionMode?.(),
+      }),
     ];
 
     // Sans cette variable, claude -p ignore --prompt-suggestions (vérifié avec la v2.1.310).

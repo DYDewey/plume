@@ -31,40 +31,45 @@ describe('projectLabel', () => {
 });
 
 describe('HistoryList', () => {
-  it('un projet repliable (fermé par défaut) par dossier, avec son nombre de sessions', () => {
+  it('rangé par date, tous projets mêlés, plus récent d’abord', () => {
     const html = render();
-    expect(html.match(/<details/g)).toHaveLength(2);
-    expect(html).not.toContain('<details open');
-    expect(html).toContain('mon-claude');
-    expect(html).toContain('(2)');
+    expect(html).not.toContain('<details');
+    expect(html.indexOf('Aujourd&#x27;hui')).toBeLessThan(html.indexOf('7 derniers jours'));
+    expect(html.indexOf('Oral')).toBeLessThan(html.indexOf('Spec &lt;chat&gt;'));
+    expect(html.indexOf('Spec &lt;chat&gt;')).toBeLessThan(html.indexOf('Module usage'));
   });
 
-  it('chaque session : titre (échappé) et date relative', () => {
+  it('chaque session : titre (échappé) et nom court du projet', () => {
     const html = render();
     expect(html).toContain('Module usage');
-    expect(html).toContain('il y a 2 j');
     expect(html).toContain('Spec &lt;chat&gt;');
-    expect(html).toContain('il y a 3 h');
+    expect(html).toMatch(/history-meta">mon-claude · /);
   });
 
-  it('la session ouverte est marquée et son projet déplié', () => {
+  it('la session ouverte est marquée', () => {
     const html = render('C--Users-moi-Documents-mon-claude/s1');
-    expect(html).toContain('<details open');
-    expect(html.match(/class="active"/g)).toHaveLength(1);
+    expect(html.match(/class="history-item active"/g)).toHaveLength(1);
+  });
+
+  it('masque les sessions techniques (claude-mem) sauf si le réglage les montre', () => {
+    const withTech = [...projects, { folder: 'C--Users-moi--claude-mem-observer', sessions: [{ id: 't', title: 'Observateur', lastAt: NOW, messageCount: 1 }] }];
+    const hidden = renderToStaticMarkup(<HistoryList projects={withTech} now={NOW} onOpen={noop} onRefresh={noop} />);
+    expect(hidden).not.toContain('Observateur');
+    const shown = renderToStaticMarkup(<HistoryList projects={withTech} now={NOW} onOpen={noop} onRefresh={noop} showTechnical />);
+    expect(shown).toContain('Observateur');
   });
 
   it('a un champ de recherche', () => {
     expect(render()).toMatch(/<input[^>]*type="search"[^>]*aria-label="Rechercher dans l&#x27;historique"/);
   });
 
-  it('une recherche ne garde que les sessions qui correspondent, projets dépliés', () => {
+  it('une recherche ne garde que les sessions qui correspondent', () => {
     const html = renderToStaticMarkup(
       <HistoryList projects={projects} now={NOW} onOpen={noop} onRefresh={noop} initialQuery="USAGE" />,
     );
     expect(html).toContain('Module usage');
     expect(html).not.toContain('Spec &lt;chat&gt;');
     expect(html).not.toContain('Oral');
-    expect(html).toContain('<details open');
   });
 
   it('« Aucun résultat » quand rien ne correspond', () => {
@@ -72,7 +77,7 @@ describe('HistoryList', () => {
       <HistoryList projects={projects} now={NOW} onOpen={noop} onRefresh={noop} initialQuery="zzz" />,
     );
     expect(html).toContain('Aucun résultat');
-    expect(html).not.toContain('<details');
+    expect(html).not.toContain('history-group');
   });
 
   it('affiche le nom personnalisé à la place du titre, et un crayon par session', () => {

@@ -42,6 +42,10 @@ function userText(content: unknown): string | null {
     return args ? `${command[1]} ${args}` : command[1];
   }
   if (/^<(local-command|task-notification)/.test(text)) return null;
+  // Commande « ! » tapée dans le terminal : on la réaffiche comme tapée ; sa sortie brute est masquée.
+  const bash = /^<bash-input>([^]*)<\/bash-input>$/.exec(text);
+  if (bash) return `! ${bash[1].trim()}`;
+  if (/^<bash-(stdout|stderr)>/.test(text)) return null;
   return text;
 }
 
@@ -84,7 +88,7 @@ export function parseSession(lines: string[]): ParsedSession {
       if (text === null) continue;
       items.push({ kind: 'user', text });
       messageCount++;
-      if (firstPrompt === undefined && !text.startsWith('/')) firstPrompt = text;
+      if (firstPrompt === undefined && !text.startsWith('/') && !text.startsWith('! ')) firstPrompt = text;
       continue;
     }
     if (!Array.isArray(content)) continue;

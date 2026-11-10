@@ -5,13 +5,18 @@ import { HistoryView } from '../src/renderer/src/components/history-view';
 const base = { title: 'Module usage', path: 'C:\\dev\\proj' };
 
 describe('HistoryView', () => {
-  it('propose « Continuer », désactivé si le dossier a disparu', () => {
-    const ok = renderToStaticMarkup(<HistoryView title="t" items={[]} onContinue={() => {}} />);
-    expect(ok).toContain('Continuer');
-    expect(ok).not.toContain('disabled');
-    const gone = renderToStaticMarkup(<HistoryView title="t" items={[]} onContinue={() => {}} folderMissing />);
-    expect(gone).toContain('disabled');
+  it('avec une zone de saisie : on peut écrire directement, plus de bouton « Continuer »', () => {
+    const ok = renderToStaticMarkup(<HistoryView title="t" items={[]} composer={<textarea id="saisie" />} />);
+    expect(ok).toContain('id="saisie"');
+    expect(ok).not.toContain('Continuer');
+    expect(ok).not.toContain('Lecture seule');
+  });
+
+  it('dossier disparu : pas de saisie, explication à la place', () => {
+    const gone = renderToStaticMarkup(<HistoryView title="t" items={[]} composer={<textarea id="saisie" />} folderMissing />);
+    expect(gone).not.toContain('id="saisie"');
     expect(gone).toContain('Dossier introuvable');
+    expect(gone).toContain('Lecture seule');
   });
 
   it('affiche les messages avec un bandeau Lecture seule, sans zone de saisie', () => {

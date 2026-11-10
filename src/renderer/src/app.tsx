@@ -1,8 +1,10 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { claudeFolder } from '../../shared/auto-title';
+import { initialTrack, titleRequest, type TitleTrack } from './auto-title-flow';
 import type { ChatItem } from '../../shared/chat-item';
 import { buildHandoffPrompt } from '../../shared/handoff';
 import type { HistoryProject } from '../../shared/history';
-import { displayTitle, emptyOrganize, renameSession, toggleFavorite, type OrganizeData } from '../../shared/organize';
+import { displayTitle, emptyOrganize, renameSession, sessionKey, toggleFavorite, type OrganizeData } from '../../shared/organize';
 import { ChatView } from './components/chat-view';
 import { Composer } from './components/composer';
 import { HandoffButton } from './components/handoff-button';
@@ -14,18 +16,37 @@ import { HistoryView, TopbarFolder } from './components/history-view';
 import { ProjectView, TopbarProject } from './components/project-view';
 import { ProjectsList } from './components/projects-list';
 import { ModelPicker } from './components/model-picker';
-import { ResponderBadge, RouterToggle } from './components/router-toggle';
+import { ResponderBadge } from './components/router-toggle';
+import { SettingsView } from './components/settings-view';
+import { DEFAULT_SETTINGS, HANDOFF_THRESHOLD, type Settings } from '../../shared/settings';
 import { Sidebar } from './components/sidebar';
 import { ContextBadge } from './components/usage-gauges';
 import { launchModel, readLastModel, writeLastModel } from './model-choice';
 import type { ModelSetting } from '../../shared/auto-route';
 import { Welcome } from './components/welcome';
-import { isSidebarToggle, readCollapsed, writeCollapsed } from './ui-format';
-import { handoffPhase, type HandoffPhase, type PendingHandoff } from './handoff-flow';
+import { ArtifactPanel } from './components/artifact-panel';
+import { ExportMenu } from './components/export-menu';
+import { ArtifactContext } from './artifact-context';
+import type { Artifact } from '../../shared/artifacts';
+import { exportFileName, toMarkdown } from '../../shared/export';
+import { addPrompt, parsePrompts, removePrompt, type SavedPrompt } from '../../shared/prompts';
+import { TitleBar } from './components/title-bar';
+import { HISTORY_SEARCH_ID, isCtrlLetter, isSettingsShortcut, isSidebarToggle, neighborSession, readCollapsed, tabDirection, writeCollapsed } from './ui-format';
+import { handoffPhase, shouldSuggestHandoff, type HandoffPhase, type PendingHandoff } from './handoff-flow';
+import { HandoffBanner } from './components/handoff-banner';
 import { initialState, sessionsReducer, type ChatState, type Limits, type SessionState } from './state/sessions';
 
 const COMMANDS_KEY = 'commands';
 const LIMITS_KEY = 'limits';
+const PROMPTS_KEY = 'mon-claude:prompts';
+
+function readPrompts(): SavedPrompt[] {
+  try {
+    return parsePrompts(localStorage.getItem(PROMPTS_KEY));
+  } catch {
+    return [];
+  }
+}
 
 /** Au démarrage : dernières commandes et jauges connues (claude ne les envoie qu'à sa 1re réponse). */
 function withSaved(state: ChatState): ChatState {
@@ -72,6 +93,36 @@ export function App() {
   const [organizeLoaded, setOrganizeLoaded] = useState(false);
   const [handoff, setHandoff] = useState<PendingHandoff | null>(null);
   const [saving, setSaving] = useState<{ busy: boolean; error?: string }>({ busy: false });
+  // Modèles de messages (panneau des prompts), gardés dans le stockage local de l'app.
+  const [prompts, setPrompts] = useState<SavedPrompt[]>(readPrompts);
+  function changePrompts(next: SavedPrompt[]) {
+    setPrompts(next);
+    try {
+      localStorage.setItem(PROMPTS_KEY, JSON.stringify(next));
+    } catch {
+      setNotice('Modèles non enregistrés : stockage indisponible');
+    }
+  }
+  const promptProps = {
+    prompts,
+    onSavePrompt: (text: string) => {
+      changePrompts(addPrompt(prompts, text, crypto.randomUUID()));
+      setNotice('Modèle enregistré');
+    },
+    onDeletePrompt: (id: string) => changePrompts(removePrompt(prompts, id)),
+  };
+  // Artefact ouvert dans le panneau de droite.
+  const [artifact, setArtifact] = useState<Artifact | null>(null);
+  const loadArtifact = useCallback((html: string) => window.claude.showArtifact(html), []);
+  // Petit message en bas (export réussi ou raté), effacé après quelques secondes.
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
+  // Sessions où l'on a répondu « Plus tard » au bandeau de passation.
+  const [handoffDismissed, setHandoffDismissed] = useState<ReadonlySet<string>>(new Set());
   const [lastModel, setLastModel] = useState(() => readLastModel(localStorage));
   const [collapsed, setCollapsed] = useState(() => readCollapsed(localStorage));
   // Fiche de projet affichée (à la place de la session et de la relecture).
@@ -88,12 +139,25 @@ export function App() {
     });
   }
 
-  // Ctrl+B, écouté en phase de capture pour passer avant la zone de saisie.
+  // Raccourcis globaux, écoutés en phase de capture pour passer avant la zone de saisie.
+  // Une ref garde les fonctions à jour sans réabonner l'écouteur à chaque rendu.
+  const noop = () => {};
+  const shortcuts = useRef<{ newSession: () => void; search: () => void; cycle: (step: -1 | 1) => void }>({ newSession: noop, search: noop, cycle: noop });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!isSidebarToggle(e)) return;
+      const step = tabDirection(e);
+      const action = isSidebarToggle(e)
+        ? toggleSidebar
+        : isCtrlLetter(e, 'n')
+          ? shortcuts.current.newSession
+          : isCtrlLetter(e, 'k')
+            ? shortcuts.current.search
+            : step
+              ? () => shortcuts.current.cycle(step)
+              : null;
+      if (!action) return;
       e.preventDefault();
-      toggleSidebar();
+      action();
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
@@ -120,9 +184,33 @@ export function App() {
     window.claude.setRouter(enabled).catch((err) => console.error('router.json non enregistré', err));
   }
 
+  // Réglages : affichés tout de suite, puis remplacés par ce que main a vraiment enregistré.
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  function changeSettings(patch: Partial<Settings>) {
+    setSettings((s) => ({ ...s, ...patch }));
+    window.claude.setSettings(patch).then(setSettings, (err) => console.error('settings.json non enregistré', err));
+  }
+  useEffect(() => {
+    document.documentElement.dataset.textSize = settings.textSize;
+  }, [settings.textSize]);
+
+  // Ctrl+, ouvre ou ferme les paramètres.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isSettingsShortcut(e)) return;
+      e.preventDefault();
+      setSettingsOpen((o) => !o);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+
   useEffect(() => {
     refreshHistory();
     window.claude.getRouter().then(setRouter, (err) => console.error('router.json illisible', err));
+    window.claude.getSettings().then(setSettings, (err) => console.error('settings.json illisible', err));
     window.claude.getOrganize().then(
       (data) => {
         setOrganize(data);
@@ -150,6 +238,35 @@ export function App() {
 
   // Un seul abonnement pour toute l'app : chaque événement de claude devient une action du reducer.
   useEffect(() => window.claude.onEvent(dispatch), []);
+
+  // Titre automatique : après chaque réponse, tant que le but n'est pas clair, on demande au juge Gemini gratuit.
+  // Le titre est enregistré comme un renommage (organize.json) : les fichiers de Claude Code ne sont jamais touchés.
+  const titles = useRef(new Map<string, TitleTrack>());
+  const organizeRef = useRef(organize);
+  organizeRef.current = organize;
+  useEffect(() => {
+    if (!organizeLoaded) return;
+    for (const s of state.sessions) {
+      const key = sessionKey(claudeFolder(s.cwd), s.id);
+      if (!titles.current.has(s.id)) titles.current.set(s.id, initialTrack(s.items));
+      const track = titles.current.get(s.id);
+      const req = titleRequest(s, track, !!organize.sessions[key]?.title);
+      if (!req) continue;
+      titles.current.set(s.id, { tries: (track?.tries ?? 0) + 1, userCount: req.userCount, done: false });
+      window.claude.titleSession(req.userTexts, req.lastReply).then(
+        (title) => {
+          if (!title || organizeRef.current.sessions[key]?.title) return;
+          titles.current.set(s.id, { tries: (track?.tries ?? 0) + 1, userCount: req.userCount, done: true });
+          dispatch({ type: 'titled', sessionId: s.id, title });
+          updateOrganize(renameSession(organizeRef.current, key, title));
+          refreshHistory();
+        },
+        () => {}, // pas de titre : on réessaiera au prochain message
+      );
+    }
+    // updateOrganize et refreshHistory changent à chaque rendu mais ne lisent que des refs et des setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.sessions, organize, organizeLoaded]);
 
   // claude n'envoie la liste des commandes qu'à sa 1re réponse : on garde la dernière pour les sessions neuves.
   useEffect(() => {
@@ -187,6 +304,7 @@ export function App() {
   }
 
   function openProject(id: string) {
+    setSettingsOpen(false);
     setViewing(null);
     setProjectId(id);
   }
@@ -198,12 +316,16 @@ export function App() {
 
   async function startIn(cwd: string) {
     const sessionId = await window.claude.startSession(cwd, { model: launchModel(lastModel) });
+    setSettingsOpen(false);
     setViewing(null);
     setProjectId(null);
+    setArtifact(null);
     dispatch({ type: 'session-opened', sessionId, cwd, model: lastModel });
   }
 
   function openHistory(folder: string, id: string, focusIndex?: number) {
+    setArtifact(null);
+    setSettingsOpen(false);
     const project = history.projects.find((p) => p.folder === folder);
     const title = project?.sessions.find((s) => s.id === id)?.title ?? id;
     const key = `${folder}/${id}`;
@@ -225,16 +347,73 @@ export function App() {
   }
 
   // La suite part dans une copie : l'ancien .jsonl n'est jamais touché, les anciens messages restent affichés.
-  async function continueViewing() {
+  const [resuming, setResuming] = useState(false);
+  /** Reprend l'ancienne conversation affichée (dans une copie, l'original reste intact) et y envoie `text`. */
+  async function continueViewing(text: string) {
     if (!viewing?.path || !viewing.items) return;
     const { id, key, path: cwd, items } = viewing;
     const title = displayTitle(viewing, organize.sessions[key]);
+    if (resuming) return;
+    setResuming(true);
     try {
       const sessionId = await window.claude.startSession(cwd, { model: launchModel(lastModel), forkFrom: id });
       setViewing(null);
       dispatch({ type: 'session-opened', sessionId, cwd, model: lastModel, title, items });
+      void deliver({ id: sessionId, model: launchModel(lastModel), auto: lastModel === 'auto' }, text);
     } catch (err) {
-      setViewing((v) => (v?.key === key ? { ...v, error: `Impossible de continuer : ${err instanceof Error ? err.message : String(err)}` } : v));
+      setViewing((v) => (v?.key === key ? { ...v, error: `Impossible de reprendre : ${err instanceof Error ? err.message : String(err)}` } : v));
+    } finally {
+      setResuming(false);
+    }
+  }
+
+  function selectSession(sessionId: string) {
+    setArtifact(null);
+    setSettingsOpen(false);
+    setViewing(null);
+    setProjectId(null);
+    dispatch({ type: 'select', sessionId });
+  }
+
+  shortcuts.current = {
+    newSession: () => {
+      setSettingsOpen(false);
+      void newSession();
+    },
+    search: () => {
+      if (collapsed) toggleSidebar();
+      // Après le rendu : la barre latérale dépliée doit exister.
+      requestAnimationFrame(() => document.getElementById(HISTORY_SEARCH_ID)?.focus());
+    },
+    cycle: (step) => {
+      const shown = viewing || shownProject || settingsOpen ? null : state.activeId;
+      const next = neighborSession(state.sessions.map((s) => s.id), shown, step);
+      if (next) selectSession(next);
+    },
+  };
+
+  // Clic sur la notification « réponse terminée » : on affiche la session concernée.
+  useEffect(() => window.claude.onFocusSession((sessionId) => selectSession(sessionId)), []);
+
+  /** Export Markdown ou PDF de la conversation affichée. */
+  async function exportChat(format: 'md' | 'pdf', title: string, items: ChatItem[]) {
+    try {
+      const path =
+        format === 'md'
+          ? await window.claude.saveText(exportFileName(title, 'md'), toMarkdown(title, items, new Date()))
+          : await window.claude.exportPdf(exportFileName(title, 'pdf'));
+      if (path) setNotice(`Enregistré : ${path}`);
+    } catch (err) {
+      setNotice(`Export impossible : ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  async function saveArtifact(name: string, text: string) {
+    try {
+      const path = await window.claude.saveText(name, text);
+      if (path) setNotice(`Enregistré : ${path}`);
+    } catch (err) {
+      setNotice(`Enregistrement impossible : ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -325,18 +504,19 @@ export function App() {
   }
 
   return (
-    <div className="app">
+    <div className="shell">
+    <TitleBar onSettings={() => setSettingsOpen((o) => !o)} settingsOpen={settingsOpen} />
+    <ArtifactContext.Provider value={setArtifact}>
+    <div className={artifact && !settingsOpen && !shownProject ? 'app with-artifact' : 'app'}>
       <Sidebar
         sessions={state.sessions}
-        activeId={viewing || shownProject ? null : state.activeId}
+        activeId={viewing || shownProject || settingsOpen ? null : state.activeId}
         limits={state.limits}
-        footer={<RouterToggle enabled={router} onChange={changeRouter} />}
-        onNew={newSession}
-        onSelect={(sessionId) => {
-          setViewing(null);
-          setProjectId(null);
-          dispatch({ type: 'select', sessionId });
+        onNew={() => {
+          setSettingsOpen(false);
+          newSession();
         }}
+        onSelect={selectSession}
         onClose={close}
         collapsed={collapsed}
         onToggle={toggleSidebar}
@@ -369,9 +549,18 @@ export function App() {
           organize={organize}
           onToggleFavorite={(key) => updateOrganize(toggleFavorite(organize, key))}
           onRename={(key, title) => updateOrganize(renameSession(organize, key, title))}
+          showTechnical={settings.showTechnical}
         />
       </Sidebar>
-      {shownProject && projectId ? (
+      {settingsOpen ? (
+        <SettingsView
+          settings={settings}
+          router={router}
+          onChange={changeSettings}
+          onRouterChange={changeRouter}
+          onClose={closeSettings}
+        />
+      ) : shownProject && projectId ? (
         <ProjectView
           key={projectId}
           project={shownProject}
@@ -391,8 +580,27 @@ export function App() {
           favorite={!!organize.sessions[viewing.key]?.favorite}
           onToggleFavorite={() => updateOrganize(toggleFavorite(organize, viewing.key))}
           onRename={(title) => updateOrganize(renameSession(organize, viewing.key, title))}
-          onContinue={() => void continueViewing()}
           folderMissing={viewing.folderMissing}
+          actions={
+            <ExportMenu
+              disabled={!viewing.items?.length}
+              onMarkdown={() => void exportChat('md', displayTitle(viewing, organize.sessions[viewing.key]), viewing.items ?? [])}
+              onPdf={() => void exportChat('pdf', displayTitle(viewing, organize.sessions[viewing.key]), viewing.items ?? [])}
+            />
+          }
+          composer={
+            <Composer
+              running={resuming}
+              onSend={(text) => void continueViewing(text)}
+              onStop={() => {}}
+              onPickFiles={() => window.claude.pickFiles()}
+              pathForFile={(f) => window.claude.pathForFile(f)}
+              onSavePasted={(bytes, ext) => window.claude.savePastedImage(bytes, ext)}
+              commands={state.commands}
+              sendKey={settings.sendKey}
+              {...promptProps}
+            />
+          }
         />
       ) : active ? (
         <main className="session">
@@ -409,14 +617,28 @@ export function App() {
               </span>
             )}
             <HandoffButton session={active} phase={phase.phase} onClick={startHandoff} />
+            <ExportMenu
+              disabled={active.items.length === 0}
+              onMarkdown={() => void exportChat('md', active.title, active.items)}
+              onPdf={() => void exportChat('pdf', active.title, active.items)}
+            />
           </header>
           <ChatView
             items={active.items}
             running={active.status === 'running'}
             onPermission={(requestId, decision) => window.claude.answerPermission(active.id, requestId, decision)}
           />
+          {shouldSuggestHandoff(active, HANDOFF_THRESHOLD, { enabled: settings.autoHandoff, dismissed: handoffDismissed.has(active.id), phase: phase.phase }) && active.context && (
+            <HandoffBanner
+              percent={Math.round((active.context.used / active.context.max) * 100)}
+              onHandoff={startHandoff}
+              onDismiss={() => setHandoffDismissed((d) => new Set(d).add(active.id))}
+            />
+          )}
           <Composer running={active.status === 'running'} onSend={send} onStop={stop} onPickFiles={() => window.claude.pickFiles()} pathForFile={(f) => window.claude.pathForFile(f)}
             onSavePasted={(bytes, ext) => window.claude.savePastedImage(bytes, ext)} commands={state.commands} suggestion={active.suggestion}
+            sendKey={settings.sendKey}
+            {...promptProps}
             tools={
               <ModelPicker
                 value={active.auto ? 'auto' : active.model}
@@ -440,6 +662,12 @@ export function App() {
       ) : (
         <Welcome onNew={newSession} />
       )}
+      {artifact && !settingsOpen && !shownProject && (
+        <ArtifactPanel artifact={artifact} load={loadArtifact} onSave={(name, text) => void saveArtifact(name, text)} onClose={() => setArtifact(null)} />
+      )}
+    </div>
+    </ArtifactContext.Provider>
+    {notice && <div className="toast" role="status">{notice}</div>}
     </div>
   );
 }

@@ -15,6 +15,7 @@ const api: ClaudeApi = {
   stopSession: (sessionId) => ipcRenderer.send(IPC.stop, sessionId),
   setModel: (sessionId, model) => ipcRenderer.invoke(IPC.setModel, sessionId, model),
   routeMessage: (text, current, contextUsed) => ipcRenderer.invoke(IPC.route, text, current, contextUsed),
+  titleSession: (userTexts, lastReply) => ipcRenderer.invoke(IPC.title, userTexts, lastReply),
   onEvent: (cb) => {
     const listener = (_e: IpcRendererEvent, event: BridgeEvent) => cb(event);
     ipcRenderer.on(IPC.event, listener);
@@ -29,6 +30,16 @@ const api: ClaudeApi = {
   pathsExist: (paths) => ipcRenderer.invoke(IPC.pathsExist, paths),
   getRouter: () => ipcRenderer.invoke(IPC.routerGet),
   setRouter: (enabled) => ipcRenderer.invoke(IPC.routerSet, enabled),
+  getSettings: () => ipcRenderer.invoke(IPC.settingsGet),
+  setSettings: (patch) => ipcRenderer.invoke(IPC.settingsSet, patch),
+  onFocusSession: (cb) => {
+    const listener = (_e: IpcRendererEvent, sessionId: string) => cb(sessionId);
+    ipcRenderer.on(IPC.focusSession, listener);
+    return () => ipcRenderer.removeListener(IPC.focusSession, listener);
+  },
+  saveText: (defaultName, text) => ipcRenderer.invoke(IPC.saveText, defaultName, text),
+  exportPdf: (defaultName) => ipcRenderer.invoke(IPC.exportPdf, defaultName),
+  showArtifact: (html) => ipcRenderer.invoke(IPC.showArtifact, html),
 };
 
 contextBridge.exposeInMainWorld('claude', api);

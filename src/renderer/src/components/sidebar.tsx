@@ -26,7 +26,7 @@ export function Sidebar({ sessions, activeId, limits, onNew, onSelect, onClose, 
         <button className="btn-icon" onClick={onToggle} aria-label="Déplier la barre latérale" aria-expanded={false} title="Déplier (Ctrl+B)">
           <PanelLeft size={18} aria-hidden />
         </button>
-        <button className="btn-icon" onClick={onNew} aria-label="Nouvelle session" title="Nouvelle session">
+        <button className="btn-icon" onClick={onNew} aria-label="Nouvelle conversation" title="Nouvelle conversation">
           <Plus size={18} aria-hidden />
         </button>
       </nav>
@@ -36,13 +36,13 @@ export function Sidebar({ sessions, activeId, limits, onNew, onSelect, onClose, 
     <nav className="sidebar">
       <div className="sidebar-top">
         <button className="btn-secondary new-session" onClick={onNew}>
-          <Plus size={16} aria-hidden /> Nouvelle session
+          <Plus size={16} aria-hidden /> Nouvelle conversation
         </button>
         <button className="btn-icon" onClick={onToggle} aria-label="Replier la barre latérale" aria-expanded title="Replier (Ctrl+B)">
           <PanelLeft size={18} aria-hidden />
         </button>
       </div>
-      <div className="sidebar-section">En cours</div>
+      <div className="sidebar-section">Ouvertes</div>
       <ul>
         {sessions.map((s) => (
           <li
@@ -71,7 +71,7 @@ export function Sidebar({ sessions, activeId, limits, onNew, onSelect, onClose, 
             </button>
           </li>
         ))}
-        {sessions.length === 0 && <li className="muted sidebar-none">Aucune session ouverte</li>}
+        {sessions.length === 0 && <li className="muted sidebar-none">Aucune conversation ouverte</li>}
       </ul>
       {children}
       <UsageGauges limits={limits} />

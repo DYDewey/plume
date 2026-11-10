@@ -42,4 +42,13 @@ Rendre l'interface aussi soignée que Claude Desktop (sobriété, typographie, e
 - Vérification dans la vraie app (CDP) : captures avant/après, thème clair et sombre, sans erreur dans la console.
 
 ## Décisions
-- Colonne de lecture centrée (~760 px) : non, la disposition des messages reste hors périmètre.
+- Colonne de lecture centrée (~760 px) : non en V1 ; oui depuis la refonte du 2026-11-09 (voir « Refonte 2026-11 » ci-dessous).
+
+## Refonte 2026-11 (plan : `tasks/plan.md`)
+- Barre de titre maison (`titleBarStyle: 'hidden'` + `titleBarOverlay` aux couleurs du thème), plus de menu Electron ; F12 = outils de dev, en dev seulement.
+- Paramètres (`settings-view.tsx`, ⚙ ou Ctrl+, , Échap) enregistrés par main dans `settings.json` (`settings-store.ts`, validation champ par champ) : thème (`nativeTheme.themeSource`), taille du texte (`data-text-size`), touche d'envoi, mode d'autorisation (`auto` par défaut, `acceptEdits`, `manual` ; jamais `bypassPermissions`), sessions techniques visibles ou non. Le secours Gemini y a déménagé (toujours `router.json`).
+- Historique rangé par date (`history-groups.ts`), tous projets mêlés ; titre + « dossier · heure » ; sessions techniques masquées (claude-mem, dossiers `AppData\Local\Temp`).
+- Conversation : colonne centrée (768 px), bulles utilisateur, blocs de code avec langage + bouton Copier (`message.tsx`), indicateur « Claude réfléchit », barre de saisie flottante qui grandit.
+- Ancienne conversation : la saisie est directement disponible ; écrire la reprend dans une copie (`--fork-session`) et envoie le message. Plus de bouton « Continuer ».
+- Titre automatique (`auto-title.ts`, `auto-title-flow.ts`) : après chaque réponse, le juge Gemini (via ccr, jamais Claude) propose un titre de 2 à 6 mots, ou « AUCUN » si le but n'est pas clair (3 essais max). Enregistré comme renommage dans `organize.json` ; un renommage manuel n'est jamais remplacé ; une conversation reprise n'est titrée qu'après un nouveau message.
+- Libellés : « Nouvelle conversation », « Ouvertes » ; titres de section en casse normale.

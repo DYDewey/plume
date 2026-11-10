@@ -20,3 +20,14 @@ export function handoffPhase(pending: PendingHandoff | null, session: SessionSta
   const text = handoffResult(session.items, pending.fromIndex);
   return text ? { phase: 'review', text } : { phase: 'failed' };
 }
+
+/** Proposer la passation : contexte au-delà du seuil, Claude au repos, pas de passation en cours ni refusée. */
+export function shouldSuggestHandoff(
+  session: Pick<SessionState, 'context' | 'status'>,
+  threshold: number,
+  opts: { enabled: boolean; dismissed: boolean; phase: HandoffPhase['phase'] },
+): boolean {
+  if (!opts.enabled || opts.dismissed || opts.phase !== 'none' || session.status !== 'idle') return false;
+  const ctx = session.context;
+  return !!ctx && ctx.max > 0 && ctx.used / ctx.max >= threshold;
+}

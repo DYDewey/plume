@@ -59,7 +59,7 @@ export function ProjectView({ project, missing, onChange, onPickFiles, onNewSess
           }}
         />
         <button disabled={folderMissing} onClick={onNewSession}>
-          <Plus size={14} aria-hidden /> Nouvelle session
+          <Plus size={14} aria-hidden /> Nouvelle conversation
         </button>
       </header>
       <div className="project-body">
