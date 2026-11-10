@@ -52,3 +52,12 @@ Rendre l'interface aussi soignée que Claude Desktop (sobriété, typographie, e
 - Ancienne conversation : la saisie est directement disponible ; écrire la reprend dans une copie (`--fork-session`) et envoie le message. Plus de bouton « Continuer ».
 - Titre automatique (`auto-title.ts`, `auto-title-flow.ts`) : après chaque réponse, le juge Gemini (via ccr, jamais Claude) propose un titre de 2 à 6 mots, ou « AUCUN » si le but n'est pas clair (3 essais max). Enregistré comme renommage dans `organize.json` ; un renommage manuel n'est jamais remplacé ; une conversation reprise n'est titrée qu'après un nouveau message.
 - Libellés : « Nouvelle conversation », « Ouvertes » ; titres de section en casse normale.
+
+## Nom et logo (2026-11-10)
+- L'app s'appelle **Plume** (nom affiché, raccourcis, installeur `Plume-Setup-<version>.exe`). L'identifiant interne ne change pas (`name: mon-claude`, appId `fr.moi.mon-claude`) : mêmes réglages dans `%APPDATA%\mon-claude`, mise à jour par-dessus l'ancienne installation.
+- Logo : plume blanche sur carré arrondi terracotta en dégradé (`resources/logo.svg`, composant `Logo`, tracés identiques vérifiés par test).
+
+## Accueil (2026-11-10)
+- Saisie directe : écrire sur l'accueil démarre une conversation dans le dossier affiché (le dernier utilisé, changeable d'un clic ; demandé s'il n'y en a pas).
+- « Récentes » : les 3 dernières conversations (hors sessions techniques), ouvertes d'un clic.
+- Barre latérale : la section « Ouvertes » disparaît quand rien n'est ouvert.

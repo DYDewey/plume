@@ -3,7 +3,7 @@
 export const TITLE_SYSTEM = [
   "Tu donnes un titre à une conversation entre un utilisateur et un assistant de code.",
   "Réponds UNIQUEMENT par le titre : 2 à 6 mots, en français, sans guillemets ni point final, première lettre en majuscule.",
-  "Le titre dit le BUT de l'utilisateur (ex. « Écran paramètres de Mon-Claude », « Bug de connexion NFC »).",
+  "Le titre dit le BUT de l'utilisateur (ex. « Écran paramètres de Plume », « Bug de connexion NFC »).",
   "Si le but n'est pas encore clair (simple salutation, « continuons », message vide de sens), réponds exactement : AUCUN",
 ].join('\n');
 

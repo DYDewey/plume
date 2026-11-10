@@ -10,7 +10,7 @@ function toolLine(name: string, input: Record<string, unknown>): string {
 
 /** Conversation en Markdown : messages en entier, outils résumés sur une ligne. */
 export function toMarkdown(title: string, items: ChatItem[], date: Date): string {
-  const out: string[] = [`# ${title}`, '', `*Exporté de Mon-Claude le ${date.toLocaleDateString('fr-FR')}*`, ''];
+  const out: string[] = [`# ${title}`, '', `*Exporté de Plume le ${date.toLocaleDateString('fr-FR')}*`, ''];
   let inTools = false;
   for (const item of items) {
     if (item.kind !== 'tool' && inTools) {

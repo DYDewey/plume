@@ -106,3 +106,22 @@ export function writeArtifactWidth(storage: Pick<Storage, 'setItem'>, width: num
     // stockage indisponible : la largeur ne sera pas retenue
   }
 }
+
+// Dernier dossier de travail, proposé sur l'accueil.
+const LAST_FOLDER_KEY = 'mon-claude:last-folder';
+
+export function readLastFolder(storage: Pick<Storage, 'getItem'>): string | null {
+  try {
+    return storage.getItem(LAST_FOLDER_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeLastFolder(storage: Pick<Storage, 'setItem'>, folder: string): void {
+  try {
+    storage.setItem(LAST_FOLDER_KEY, folder);
+  } catch {
+    // stockage indisponible : le dossier sera redemandé
+  }
+}

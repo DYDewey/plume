@@ -75,7 +75,7 @@ export function artifactFileName(a: Artifact): string {
 }
 
 /** Consigne ajoutée à chaque session (réglage « Artefacts automatiques ») : quand produire un artefact, et comment. */
-export const ARTIFACT_INSTRUCTIONS = `Tu tournes dans Mon-Claude, une app de bureau qui affiche les « artefacts » dans un panneau d'aperçu à côté du chat.
+export const ARTIFACT_INSTRUCTIONS = `Tu tournes dans Plume, une app de bureau qui affiche les « artefacts » dans un panneau d'aperçu à côté du chat.
 Quand un visuel aide vraiment à comprendre ou à utiliser ta réponse (schéma, diagramme, graphique, petite page interactive, mini-jeu, simulation, fiche de révision mise en page), ajoute UN artefact dans ta réponse :
 - diagramme (flux, étapes, architecture, séquence, classes) : un bloc \`\`\`mermaid ;
 - image simple ou icône : un bloc \`\`\`svg avec un <svg> complet ;

@@ -11,7 +11,7 @@ describe('toMarkdown', () => {
       { kind: 'error', message: 'Coupé' },
     ], new Date(2026, 10, 10));
     expect(md).toBe(
-      '# Promesses\n\n*Exporté de Mon-Claude le 10/11/2026*\n\n## Toi\n\nExplique\n\n- *Read* `a.js`\n- *Bash* `echo \'x\'`\n\n## Claude\n\nUne **promesse**…\n\n> Erreur : Coupé\n',
+      '# Promesses\n\n*Exporté de Plume le 10/11/2026*\n\n## Toi\n\nExplique\n\n- *Read* `a.js`\n- *Bash* `echo \'x\'`\n\n## Claude\n\nUne **promesse**…\n\n> Erreur : Coupé\n',
     );
   });
 });

@@ -20,7 +20,7 @@ function createWindow(): void {
     height: 750,
     minWidth: 720,
     minHeight: 480,
-    title: 'Mon-Claude',
+    title: 'Plume',
     // Pas de barre Windows ni de menu : on dessine notre barre, Windows garde ses 3 boutons.
     titleBarStyle: 'hidden',
     titleBarOverlay: overlayColors(),

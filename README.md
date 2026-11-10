@@ -1,4 +1,4 @@
-# Mon-Claude
+# Plume
 
 App de bureau Windows gratuite autour du CLI [Claude Code](https://docs.claude.com/en/docs/claude-code). Elle pilote `claude` en arrière-plan avec ton abonnement : pas de clé API, aucun appel payant.
 
@@ -26,7 +26,7 @@ npm install
 npm run dist
 ```
 
-L'installeur est créé dans `release/Mon-Claude-Setup-<version>.exe`. Il installe l'app pour ton utilisateur seul, avec un raccourci sur le Bureau et dans le menu Démarrer. La désinstallation (Paramètres → Applications) ne touche pas à ton historique Claude Code.
+L'installeur est créé dans `release/Plume-Setup-<version>.exe`. Il installe l'app pour ton utilisateur seul, avec un raccourci sur le Bureau et dans le menu Démarrer. La désinstallation (Paramètres → Applications) ne touche pas à ton historique Claude Code.
 
 ## Développement
 

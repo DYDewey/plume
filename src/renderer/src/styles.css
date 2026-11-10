@@ -760,3 +760,30 @@ button.prompt-item { flex: 1; min-width: 0; display: flex; flex-direction: colum
 .retry-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: var(--fs-xs); color: var(--muted); }
 .retry-btn:hover:not(:disabled) { color: var(--text); }
 .find-bar input::-webkit-search-cancel-button { display: none; }
+
+/* Logo Plume (dégradé terracotta, le même dans les deux thèmes) */
+:root { --logo-from: #e89a74; --logo-to: #c4603f; }
+.titlebar-logo { display: block; width: 22px; height: 22px; background: none; border-radius: 6px; flex-shrink: 0; }
+.welcome .logo { display: block; width: 64px; height: 64px; background: none; border-radius: 15px; box-shadow: var(--shadow-md); }
+
+/* Accueil : saisie directe, dossier de travail, conversations récentes */
+.welcome { padding: 0 var(--sp-5); }
+.welcome-composer { width: min(720px, 100%); animation: msg-in 420ms var(--ease) 120ms both; }
+.welcome-composer .composer-dock { padding: 0; background: none; }
+button.folder-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 4px 10px; font: inherit; font-size: var(--fs-xs); color: var(--muted);
+  background: transparent !important; border: 1px solid var(--border) !important; border-radius: var(--r-pill); box-shadow: none !important;
+}
+button.folder-chip:hover:not(:disabled) { color: var(--text); background: var(--hover) !important; }
+.folder-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.welcome-recent { width: min(720px, 100%); margin-top: var(--sp-2); animation: fade-in 600ms var(--ease) 200ms both; }
+.welcome-recent-label { margin: 0 0 var(--sp-2) 2px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+.welcome-recent-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--sp-2); }
+button.recent-card {
+  display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 8px; row-gap: 2px; padding: 10px 12px; min-width: 0; text-align: left; font: inherit; color: var(--text);
+  background: var(--panel) !important; border: 1px solid var(--border-soft) !important; border-radius: var(--r-md); box-shadow: none !important; transition: border-color var(--fade), transform var(--fade);
+}
+button.recent-card:hover { border-color: var(--border) !important; transform: translateY(-1px); }
+.recent-card > .lucide { color: var(--muted); grid-row: span 2; }
+.recent-title { font-size: var(--fs-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-meta { font-size: var(--fs-xs); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

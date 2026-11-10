@@ -1,11 +1,12 @@
 import { Settings } from 'lucide-react';
+import { Logo } from './logo';
 
 /** Barre de titre maison : on peut déplacer la fenêtre en la tirant ; Windows dessine ses boutons à droite. */
 export function TitleBar({ onSettings, settingsOpen }: { onSettings: () => void; settingsOpen: boolean }) {
   return (
     <header className="titlebar">
-      <span className="titlebar-logo" aria-hidden="true">C</span>
-      <span className="titlebar-name">Mon-Claude</span>
+      <Logo size={22} className="titlebar-logo" />
+      <span className="titlebar-name">Plume</span>
       <span className="titlebar-spacer" />
       <button
         type="button"

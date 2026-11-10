@@ -23,7 +23,7 @@ import { Sidebar } from './components/sidebar';
 import { ContextBadge } from './components/usage-gauges';
 import { launchModel, readLastModel, writeLastModel } from './model-choice';
 import type { ModelSetting } from '../../shared/auto-route';
-import { Welcome } from './components/welcome';
+import { FolderChip, recentSessions, Welcome } from './components/welcome';
 import { ArtifactPanel } from './components/artifact-panel';
 import { ExportMenu } from './components/export-menu';
 import { ArtifactContext } from './artifact-context';
@@ -32,7 +32,7 @@ import { exportFileName, toMarkdown } from '../../shared/export';
 import { lastArtifact } from '../../shared/auto-artifact';
 import { addPrompt, parsePrompts, removePrompt, type SavedPrompt } from '../../shared/prompts';
 import { TitleBar } from './components/title-bar';
-import { readArtifactWidth, writeArtifactWidth, HISTORY_SEARCH_ID, isCtrlLetter, isSettingsShortcut, isSidebarToggle, neighborSession, readCollapsed, tabDirection, writeCollapsed } from './ui-format';
+import { readArtifactWidth, writeArtifactWidth, HISTORY_SEARCH_ID, isCtrlLetter, isSettingsShortcut, isSidebarToggle, neighborSession, readCollapsed, readLastFolder, writeLastFolder, tabDirection, writeCollapsed } from './ui-format';
 import { handoffPhase, shouldSuggestHandoff, type HandoffPhase, type PendingHandoff } from './handoff-flow';
 import { HandoffBanner } from './components/handoff-banner';
 import { initialState, lastUserText, sessionsReducer, type ChatState, type Limits, type SessionState } from './state/sessions';
@@ -351,13 +351,33 @@ export function App() {
     setProjectId(null);
   }
 
-  async function startIn(cwd: string) {
-    const sessionId = await window.claude.startSession(cwd, { model: launchModel(lastModel) });
+  /** Ouvre une conversation dans `cwd` ; avec `firstText`, l'envoie tout de suite (saisie de l'accueil). */
+  async function startIn(cwd: string, firstText?: string) {
+    const model = launchModel(lastModel);
+    const sessionId = await window.claude.startSession(cwd, { model });
     setSettingsOpen(false);
     setViewing(null);
     setProjectId(null);
     closeArtifact();
+    rememberFolder(cwd);
     dispatch({ type: 'session-opened', sessionId, cwd, model: lastModel });
+    if (firstText) void deliver({ id: sessionId, model, auto: lastModel === 'auto' }, firstText);
+  }
+
+  // Dossier de travail proposé sur l'accueil : le dernier utilisé (changeable d'un clic).
+  const [lastFolder, setLastFolder] = useState<string | null>(() => readLastFolder(localStorage));
+  function rememberFolder(cwd: string) {
+    setLastFolder(cwd);
+    writeLastFolder(localStorage, cwd);
+  }
+  async function pickWelcomeFolder() {
+    const cwd = await window.claude.pickFolder();
+    if (cwd) rememberFolder(cwd);
+  }
+  /** Message écrit sur l'accueil : nouvelle conversation dans le dossier choisi (demandé s'il n'y en a pas). */
+  async function startFromWelcome(text: string) {
+    const cwd = lastFolder ?? (await window.claude.pickFolder());
+    if (cwd) await startIn(cwd, text);
   }
 
   function openHistory(folder: string, id: string, focusIndex?: number) {
@@ -712,7 +732,25 @@ export function App() {
           )}
         </main>
       ) : (
-        <Welcome onNew={newSession} />
+        <Welcome
+          onNew={newSession}
+          recent={recentSessions(history.projects, organize, history.at)}
+          onOpenRecent={openHistory}
+          composer={
+            <Composer
+              running={false}
+              onSend={(text) => void startFromWelcome(text)}
+              onStop={() => {}}
+              onPickFiles={() => window.claude.pickFiles()}
+              pathForFile={(f) => window.claude.pathForFile(f)}
+              onSavePasted={(bytes, ext) => window.claude.savePastedImage(bytes, ext)}
+              commands={state.commands}
+              sendKey={settings.sendKey}
+              {...promptProps}
+              tools={<FolderChip folder={lastFolder} onPick={() => void pickWelcomeFolder()} />}
+            />
+          }
+        />
       )}
       {artifact && !settingsOpen && !shownProject && (
         <ArtifactPanel artifact={artifact} load={loadArtifact} onSave={(name, text) => void saveArtifact(name, text)} onClose={closeArtifact} width={artifactWidth} onResize={(w) => { setArtifactWidth(w); writeArtifactWidth(localStorage, w); }} />

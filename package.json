@@ -42,7 +42,7 @@
   },
   "build": {
     "appId": "fr.moi.mon-claude",
-    "productName": "Mon-Claude",
+    "productName": "Plume",
     "directories": {
       "output": "release",
       "buildResources": "resources"
@@ -60,7 +60,7 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Mon-Claude",
+      "shortcutName": "Plume",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
       "artifactName": "${productName}-Setup-${version}.${ext}"

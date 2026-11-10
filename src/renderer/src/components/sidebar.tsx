@@ -42,6 +42,9 @@ export function Sidebar({ sessions, activeId, limits, onNew, onSelect, onClose, 
           <PanelLeft size={18} aria-hidden />
         </button>
       </div>
+      {/* Rien d'ouvert : la section disparaît, l'historique remonte. */}
+      {sessions.length > 0 && (
+      <>
       <div className="sidebar-section">Ouvertes</div>
       <ul>
         {sessions.map((s) => (
@@ -71,8 +74,9 @@ export function Sidebar({ sessions, activeId, limits, onNew, onSelect, onClose, 
             </button>
           </li>
         ))}
-        {sessions.length === 0 && <li className="muted sidebar-none">Aucune conversation ouverte</li>}
       </ul>
+      </>
+      )}
       {children}
       <UsageGauges limits={limits} />
       {footer}

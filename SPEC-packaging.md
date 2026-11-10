@@ -16,7 +16,7 @@ Transformer l'app en vraie appli Windows : un installeur `Setup.exe`, une icône
 
 ## Découpage
 - `package.json` : script `dist`, champs `build` (appId `fr.moi.mon-claude`, productName `Mon-Claude`, cible `nsis`, `directories.output: release`, fichiers inclus = `out/**` et `package.json`, `directories.buildResources: resources`).
-- `scripts/make-icon.mjs` : produit `resources/icon.png` sans dépendance (pixels écrits à la main et compressés avec `zlib`).
+- `resources/logo.svg` : logo (plume). `npx electron scripts/render-logo.mjs` le dessine dans un canvas et écrit `resources/icon.png` (512×512), sans dépendance.
 - `.gitignore` : ajout de `release/`.
 - Rien à changer dans `src/`, sauf si la vérification du point 4 révèle un problème.
 
