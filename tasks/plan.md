@@ -1,36 +1,29 @@
-# Plan : modules restants + artefacts (2026-11-10)
-
-Demande : « fais tout, comme la vraie application Claude, avec les artefacts ». Modules du SPEC encore à faire : `shortcuts`, `auto-handoff`, `files`, `prompts`, `export`, plus un nouveau module `artifacts`.
+# Plan : artefacts auto, panneau confortable, Auto plus malin, Ctrl+F et Réessayer (2026-11-10)
 
 ## Graphe de dépendances
 ```
-T1 shortcuts ─────────────── (indépendant)
-T2 auto-handoff ──> handoff existant (bouton Passation)
-T3 files ─────────> items 'tool' (Edit/Write) déjà dans le chat
-T4 artifacts ─────> blocs de code (message.tsx) ; T3 réutilise son « Aperçu » pour les .html/.svg
-T5 prompts ───────> composer (texte de la saisie)
-T6 export ────────> ChatItem[] (session ouverte et historique)
-T7 docs + build + installation ──> tout
+A1 consigne artefacts (main, --append-system-prompt) ──> A2 ouverture auto en fin de réponse (renderer)
+B1 panneau redimensionnable ──> B2 barre latérale repliée à l'ouverture (indépendant de A)
+C  règles Auto (shared/auto-route.ts) ─── indépendant
+D1 Ctrl+F dans la conversation ─── indépendant
+D2 Réessayer (renvoie le dernier message) ─── indépendant
 ```
 
 ## Décisions
-- **Aucune nouvelle dépendance.** Mermaid n'est pas installé : un bloc ```mermaid est affiché comme artefact, avec une page qui charge mermaid depuis le CDN jsdelivr (version fixée).
-- **Artefacts** : servis par un protocole maison `artifact://` (main), avec leur propre CSP. L'iframe a `sandbox="allow-scripts"` (origine opaque : pas d'accès à l'app ni à Node). Une iframe `srcdoc` hériterait de la CSP de l'app, qui bloque les scripts : d'où le protocole. Réseau autorisé seulement vers les CDN (cdnjs, jsdelivr, unpkg) et Google Fonts ; `connect-src 'none'`.
-- **Fichiers modifiés** : déduits des entrées des outils Edit / MultiEdit / Write (ancien et nouveau texte), sans lire le disque. Diff ligne à ligne maison (LCS), plafonné.
-- **Passation auto** : bandeau au-dessus de la saisie quand le contexte dépasse 70 % (réglage, activé par défaut), masquable pour la session.
-- **Notification** : envoyée par main à la fin d'une réponse si la fenêtre n'a pas le focus (réglage, activé par défaut). Clic : la fenêtre revient et la session s'affiche.
-- **Prompts** : modèles enregistrés dans localStorage (confort, survit aux mises à jour) ; panneau dans la barre de saisie avec deux onglets : Modèles et Skills.
-- **Export** : Markdown = fonction pure + boîte « Enregistrer sous ». PDF = `printToPDF` de la fenêtre, avec une feuille `@media print` qui ne garde que la conversation.
+- **Consigne artefacts** : texte fixe ajouté à `--append-system-prompt` (avec les instructions de projet), seulement si le réglage « Artefacts automatiques » est actif (défaut : oui). Elle dit à Claude d'écrire une page HTML autonome, un SVG ou un Mermaid dans un bloc de code quand un visuel aide vraiment ; jamais pour du code à mettre dans un projet. Aucun appel en plus : c'est juste du texte dans la session.
+- **Ouverture auto** : à la fin d'une réponse (passage running → idle) de la session affichée, si la réponse contient un artefact, il s'ouvre (le dernier). Pas pendant le flux : code incomplet.
+- **Panneau** : poignée à gauche, glisser = largeur (320 px → 75 % de la fenêtre), retenue dans localStorage. À l'ouverture, la barre latérale se replie ; à la fermeture, elle revient si c'est le panneau qui l'avait repliée.
+- **Auto** (5 décisions dans le journal, 2 erreurs) :
+  - « Vas-y prépare tout… » : message de suite, le juge le voit sans contexte. Règle : un message de suite (« vas-y », « continue », « oui », « fais-le »…) garde le modèle en cours.
+  - « J'aimerais qu'on travaille ensemble sur un projet » → Haiku : trop faible. Règle sûre Sonnet minimum pour un début de projet ou de travail.
+- **Ctrl+F** : barre de recherche en haut de la conversation (ouverte ou relue), surligne les messages qui contiennent le texte, Entrée / Maj+Entrée = suivant / précédent, Échap ferme. Recherche dans les données (ChatItem), pas dans le DOM.
+- **Réessayer** : bouton sous la dernière réponse de Claude (session ouverte, au repos) : renvoie le dernier message de l'utilisateur tel quel.
 
 ## Tâches
-- T1 Raccourcis : Ctrl+N (nouvelle conversation), Ctrl+K (recherche), Ctrl+Tab / Ctrl+Maj+Tab (session suivante / précédente), notification Windows. Accept : tests des détecteurs de touches et de `nextSession`. Vérif : tests + CDP.
-- T2 Passation auto : `shouldSuggestHandoff(context, threshold)`, bandeau + bouton. Accept : tests seuil + bandeau rendu. Vérif : tests.
-- T3 Fichiers modifiés : `fileChanges(items)` par réponse + `lineDiff`, carte « N fichiers modifiés » dépliable. Accept : tests diff, regroupement Edit+Write du même fichier.
-- T4 Artefacts : `artifactKind(lang, code)`, `artifactPage(kind, code)`, bouton « Aperçu » sur les blocs html/svg/mermaid, panneau à droite (Aperçu/Code, Copier, Enregistrer, Fermer). Accept : tests + capture CDP d'un artefact.
-- T5 Prompts : `parsePrompts`, panneau, insertion dans la saisie, « Enregistrer comme modèle ». Accept : tests.
-- T6 Export : `toMarkdown(title, items)`, IPC `export:markdown` / `export:pdf`, menu « Exporter » (session et historique). Accept : tests Markdown.
-- T7 `SPEC-*.md` des modules, SPEC.md (ordre), build, installation, vérification CDP.
-
-## Points de contrôle
-- Après T2, T4 et T6 : `npm test`, `npm run typecheck`, `npm run lint`.
-- À la fin : `npm run dist`, installation silencieuse, captures CDP clair/sombre.
+- T1 Consigne artefacts + réglage. Accept : `artifactInstructions` testée ; args contiennent la consigne seulement si réglage actif.
+- T2 Ouverture auto. Accept : `lastArtifact(items)` testée.
+- T3 Panneau redimensionnable + repli. Accept : `clampWidth` testée ; vérif CDP.
+- T4 Règles Auto. Accept : tests sur les 5 messages du journal + `isContinuation`.
+- T5 Ctrl+F. Accept : `findMatches` testée ; vérif CDP.
+- T6 Réessayer. Accept : `lastUserText` testée, bouton rendu seulement au repos.
+- T7 Tests, typecheck, lint, build, installation, CDP, commit, publication (avec accord).

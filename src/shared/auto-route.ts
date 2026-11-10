@@ -114,6 +114,10 @@ const OPUS_GUESS: Rule[] = [
 // ---------- Sonnet : réponse construite, sans code ni raisonnement très long ----------
 
 const SONNET: Rule[] = [
+  // Journal du 09/11 : « J'aimerais qu'on travaille ensemble sur un projet » partait sur Haiku (juge).
+  { model: 'sonnet', sure: true, reason: 'travail sur un projet', test: w(
+    'projets?', 'travaill(er|ons|e) ensemble', 'bosser ensemble', 'on (va )?(bosse|travaille|attaque|commence)', 'on s.y met', 'nouvelle? (appli|application|idee de projet)',
+  ) },
   { model: 'sonnet', sure: false, reason: 'explication', test: w(
     'explique[rz]?', 'explication', 'pourquoi', 'comment (ca|fonctionne|marche|faire|fait[- ]on|on fait|je peux|puis[- ]je)', 'difference entre', 'quelle est la difference',
     'aide[- ]moi a comprendre', 'je comprends pas', 'j.ai pas compris', 'cours sur', 'fiche (de revision)?', 'revision', 'reviser', 'resume[rz]? (ce|cet|cette|le|la|les)',
@@ -200,10 +204,26 @@ export interface RouteContext {
   contextUsed?: number;
 }
 
-/** Décision finale : règles + juge + garde-fous (commandes, cache). */
+/**
+ * Message qui demande juste de continuer ce qui a été discuté (« vas-y », « oui fais-le », « continue »).
+ * Le juge le lit sans la conversation : il ne peut pas savoir si la suite est simple ou difficile.
+ */
+export function isContinuation(text: string): boolean {
+  const t = normalize(text.trim());
+  if (t.length > 120) return false;
+  return /^((oui|ouais|ok|okay|d.accord|dac|parfait|super|go|allez|bon)[ ,!.]*)?(vas[- ]y|go\b|continue|continuons|on continue|enchaine|fais[- ](le|la|les|tout|ca|pareil)|fais ce que tu|on y va|c.est parti|lance[- ](le|la|toi)?|applique|termine|finis|prepare tout|fais tout|je te laisse faire|a toi|ok pour moi|valide)/.test(t)
+    || /^(oui|ouais|ok|okay|go|d.accord|dac)[ !.]*$/.test(t);
+}
+
+/** Décision finale : règles + juge + garde-fous (commandes, suite de tâche, cache). */
 export function decideRoute(text: string, rule: RuleResult, judge: ModelChoice | null, ctx: RouteContext = {}): Route {
   if (text.trim().startsWith('/')) {
     return { model: ctx.current ?? 'sonnet', reason: 'commande : modèle en cours gardé', source: 'gardé' };
+  }
+  // Journal du 09/11 : « Vas-y prépare tout… » doit rester sur le modèle qui a préparé la tâche.
+  if (ctx.current && isContinuation(text)) {
+    const model = rule.sure && RANK[rule.model] > RANK[ctx.current] ? rule.model : ctx.current;
+    return { model, reason: 'suite de la tâche : modèle en cours gardé', source: 'gardé' };
   }
   let route: Route;
   if (!judge) route = { model: rule.model, reason: rule.reason, source: 'règles' };

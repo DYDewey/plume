@@ -78,3 +78,31 @@ export function writeCollapsed(storage: Pick<Storage, 'setItem'>, collapsed: boo
     // stockage indisponible : l'état ne sera pas retenu, sans gravité
   }
 }
+
+// Largeur du panneau d'artefact (px), réglée à la souris.
+const ARTIFACT_WIDTH_KEY = 'mon-claude:artifact-width';
+export const ARTIFACT_MIN_WIDTH = 320;
+export const ARTIFACT_DEFAULT_WIDTH = 560;
+
+/** Largeur gardée entre 320 px et 75 % de la fenêtre (le chat garde toujours de la place). */
+export function clampWidth(width: number, windowWidth: number): number {
+  const max = Math.max(ARTIFACT_MIN_WIDTH, Math.round(windowWidth * 0.75));
+  return Math.round(Math.min(max, Math.max(ARTIFACT_MIN_WIDTH, width)));
+}
+
+export function readArtifactWidth(storage: Pick<Storage, 'getItem'>): number {
+  try {
+    const n = Number(storage.getItem(ARTIFACT_WIDTH_KEY));
+    return Number.isFinite(n) && n >= ARTIFACT_MIN_WIDTH ? n : ARTIFACT_DEFAULT_WIDTH;
+  } catch {
+    return ARTIFACT_DEFAULT_WIDTH;
+  }
+}
+
+export function writeArtifactWidth(storage: Pick<Storage, 'setItem'>, width: number): void {
+  try {
+    storage.setItem(ARTIFACT_WIDTH_KEY, String(width));
+  } catch {
+    // stockage indisponible : la largeur ne sera pas retenue
+  }
+}

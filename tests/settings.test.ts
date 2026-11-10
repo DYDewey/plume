@@ -7,7 +7,7 @@ import { loadSettings, saveSettings } from '../src/main/settings-store';
 
 describe('parseSettings', () => {
   it('garde les valeurs valides', () => {
-    const all = { theme: 'dark', textSize: 'large', sendKey: 'ctrl-enter', permissionMode: 'manual', showTechnical: true, notify: false, autoHandoff: false };
+    const all = { theme: 'dark', textSize: 'large', sendKey: 'ctrl-enter', permissionMode: 'manual', showTechnical: true, notify: false, autoHandoff: false, autoArtifacts: false };
     expect(parseSettings(all)).toEqual(all);
   });
 

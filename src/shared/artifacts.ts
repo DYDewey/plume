@@ -73,3 +73,17 @@ export function artifactFileName(a: Artifact): string {
   const base = a.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'artefact';
   return `${base}.${a.kind === 'mermaid' ? 'mmd' : a.kind}`;
 }
+
+/** Consigne ajoutée à chaque session (réglage « Artefacts automatiques ») : quand produire un artefact, et comment. */
+export const ARTIFACT_INSTRUCTIONS = `Tu tournes dans Mon-Claude, une app de bureau qui affiche les « artefacts » dans un panneau d'aperçu à côté du chat.
+Quand un visuel aide vraiment à comprendre ou à utiliser ta réponse (schéma, diagramme, graphique, petite page interactive, mini-jeu, simulation, fiche de révision mise en page), ajoute UN artefact dans ta réponse :
+- diagramme (flux, étapes, architecture, séquence, classes) : un bloc \`\`\`mermaid ;
+- image simple ou icône : un bloc \`\`\`svg avec un <svg> complet ;
+- page interactive, graphique ou mise en page : un bloc \`\`\`html avec une page complète et autonome (<!doctype html>, <title> court, CSS et JS dans la page ; bibliothèques seulement depuis cdnjs.cloudflare.com, cdn.jsdelivr.net ou unpkg.com avec une version précise ; aucune requête réseau depuis le script).
+N'en fais pas pour une réponse courte, une question simple, ni pour du code destiné à un fichier du projet (là, modifie le fichier comme d'habitude). Explique en une phrase ce que montre l'artefact.`;
+
+/** Joint plusieurs consignes système (les vides sont ignorées) ; null s'il n'y a rien. */
+export function joinPrompts(...parts: (string | null | undefined)[]): string | null {
+  const kept = parts.map((p) => p?.trim()).filter((p): p is string => !!p);
+  return kept.length ? kept.join('\n\n') : null;
+}

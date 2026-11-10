@@ -24,3 +24,9 @@ Juge Claude (coûte du quota), niveau d'effort, choix par projet.
 - « salut ça va » → Haiku ; « explique la photosynthèse » → Sonnet ; « corrige le bug dans app.tsx » → Opus.
 - ccr arrêté : l'app choisit quand même (règles) et rien ne bloque.
 - Tests Vitest : règles (FR/EN), lecture de la réponse du juge, décision (sûre, sans juge, cache, commandes).
+
+## Ajustements d'après le journal (2026-11-10)
+Journal `auto-route.jsonl` : 5 décisions le 09/11, 2 mauvaises.
+- « J'aimerais qu'on travaille ensemble sur un projet » → Haiku (juge). Nouvelle règle **sûre** Sonnet « travail sur un projet » (projet, travailler ensemble, on s'y met…) : le juge ne descend plus en dessous.
+- « Vas-y prépare tout pour que je puisse le tester » : le juge lit le message sans la conversation. `isContinuation` reconnaît les relances courtes (vas-y, continue, oui, fais-le, je te laisse faire…, ≤ 120 caractères) : le modèle en cours est gardé (source « gardé »), sans appeler le juge. Exception : une règle sûre plus forte (ex. une trace d'erreur collée) l'emporte.
+- Tests : `tests/auto-route-journal.test.ts` rejoue les 5 messages. À refaire quand le journal aura plus de lignes.

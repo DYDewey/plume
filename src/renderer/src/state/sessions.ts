@@ -173,3 +173,12 @@ function update(state: ChatState, id: string, fn: Patch): ChatState {
 function fromBridge(state: ChatState, id: string, fn: Patch): ChatState {
   return update(state, id, (s) => ({ ...fn(s), ...(id !== state.activeId && { unread: true }) }));
 }
+
+/** Dernier message envoyé par l'utilisateur (pour « Réessayer »), ou null. */
+export function lastUserText(items: ChatItem[]): string | null {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (item.kind === 'user') return item.text;
+  }
+  return null;
+}

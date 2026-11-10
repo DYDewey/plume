@@ -29,12 +29,13 @@ import { ExportMenu } from './components/export-menu';
 import { ArtifactContext } from './artifact-context';
 import type { Artifact } from '../../shared/artifacts';
 import { exportFileName, toMarkdown } from '../../shared/export';
+import { lastArtifact } from '../../shared/auto-artifact';
 import { addPrompt, parsePrompts, removePrompt, type SavedPrompt } from '../../shared/prompts';
 import { TitleBar } from './components/title-bar';
-import { HISTORY_SEARCH_ID, isCtrlLetter, isSettingsShortcut, isSidebarToggle, neighborSession, readCollapsed, tabDirection, writeCollapsed } from './ui-format';
+import { readArtifactWidth, writeArtifactWidth, HISTORY_SEARCH_ID, isCtrlLetter, isSettingsShortcut, isSidebarToggle, neighborSession, readCollapsed, tabDirection, writeCollapsed } from './ui-format';
 import { handoffPhase, shouldSuggestHandoff, type HandoffPhase, type PendingHandoff } from './handoff-flow';
 import { HandoffBanner } from './components/handoff-banner';
-import { initialState, sessionsReducer, type ChatState, type Limits, type SessionState } from './state/sessions';
+import { initialState, lastUserText, sessionsReducer, type ChatState, type Limits, type SessionState } from './state/sessions';
 
 const COMMANDS_KEY = 'commands';
 const LIMITS_KEY = 'limits';
@@ -93,6 +94,7 @@ export function App() {
   const [organizeLoaded, setOrganizeLoaded] = useState(false);
   const [handoff, setHandoff] = useState<PendingHandoff | null>(null);
   const [saving, setSaving] = useState<{ busy: boolean; error?: string }>({ busy: false });
+  const [collapsed, setCollapsed] = useState(() => readCollapsed(localStorage));
   // Modèles de messages (panneau des prompts), gardés dans le stockage local de l'app.
   const [prompts, setPrompts] = useState<SavedPrompt[]>(readPrompts);
   function changePrompts(next: SavedPrompt[]) {
@@ -114,6 +116,27 @@ export function App() {
   // Artefact ouvert dans le panneau de droite.
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const loadArtifact = useCallback((html: string) => window.claude.showArtifact(html), []);
+  // À l'ouverture, la barre latérale se replie pour laisser de la place ; elle revient à la fermeture
+  // seulement si c'est le panneau qui l'avait repliée (pas enregistré : ce n'est pas un choix de l'utilisateur).
+  const collapsedRef = useRef(collapsed);
+  collapsedRef.current = collapsed;
+  const autoCollapsed = useRef(false);
+  const openArtifact = useCallback((a: Artifact) => {
+    setArtifact(a);
+    if (!collapsedRef.current) {
+      autoCollapsed.current = true;
+      setCollapsed(true);
+    }
+  }, []);
+  const closeArtifact = useCallback(() => {
+    setArtifact(null);
+    if (autoCollapsed.current) {
+      autoCollapsed.current = false;
+      setCollapsed(false);
+    }
+  }, []);
+  // Largeur du panneau, réglée à la souris et retenue entre deux lancements.
+  const [artifactWidth, setArtifactWidth] = useState(() => readArtifactWidth(localStorage));
   // Petit message en bas (export réussi ou raté), effacé après quelques secondes.
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
@@ -124,7 +147,6 @@ export function App() {
   // Sessions où l'on a répondu « Plus tard » au bandeau de passation.
   const [handoffDismissed, setHandoffDismissed] = useState<ReadonlySet<string>>(new Set());
   const [lastModel, setLastModel] = useState(() => readLastModel(localStorage));
-  const [collapsed, setCollapsed] = useState(() => readCollapsed(localStorage));
   // Fiche de projet affichée (à la place de la session et de la relecture).
   const [projectId, setProjectId] = useState<string | null>(null);
   // Dossiers et fichiers de projets qui n'existent plus.
@@ -133,6 +155,7 @@ export function App() {
   const shownProject = projectId ? organize.projects?.[projectId] : undefined;
 
   function toggleSidebar() {
+    autoCollapsed.current = false; // choix de l'utilisateur : le panneau ne la rouvrira pas
     setCollapsed((c) => {
       writeCollapsed(localStorage, !c);
       return !c;
@@ -268,6 +291,20 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.sessions, organize, organizeLoaded]);
 
+  // Artefacts automatiques : à la fin d'une réponse de la session affichée, son dernier artefact s'ouvre.
+  // Pas pendant le flux : le code serait incomplet.
+  const lastStatus = useRef(new Map<string, SessionState['status']>());
+  useEffect(() => {
+    for (const s of state.sessions) {
+      const before = lastStatus.current.get(s.id);
+      lastStatus.current.set(s.id, s.status);
+      if (before !== 'running' || s.status !== 'idle') continue;
+      if (!settings.autoArtifacts || s.id !== state.activeId || viewing || settingsOpen || projectId) continue;
+      const found = lastArtifact(s.items);
+      if (found) openArtifact(found);
+    }
+  }, [state.sessions, state.activeId, settings.autoArtifacts, viewing, settingsOpen, projectId, openArtifact]);
+
   // claude n'envoie la liste des commandes qu'à sa 1re réponse : on garde la dernière pour les sessions neuves.
   useEffect(() => {
     try {
@@ -319,12 +356,12 @@ export function App() {
     setSettingsOpen(false);
     setViewing(null);
     setProjectId(null);
-    setArtifact(null);
+    closeArtifact();
     dispatch({ type: 'session-opened', sessionId, cwd, model: lastModel });
   }
 
   function openHistory(folder: string, id: string, focusIndex?: number) {
-    setArtifact(null);
+    closeArtifact();
     setSettingsOpen(false);
     const project = history.projects.find((p) => p.folder === folder);
     const title = project?.sessions.find((s) => s.id === id)?.title ?? id;
@@ -368,7 +405,7 @@ export function App() {
   }
 
   function selectSession(sessionId: string) {
-    setArtifact(null);
+    closeArtifact();
     setSettingsOpen(false);
     setViewing(null);
     setProjectId(null);
@@ -393,7 +430,18 @@ export function App() {
   };
 
   // Clic sur la notification « réponse terminée » : on affiche la session concernée.
-  useEffect(() => window.claude.onFocusSession((sessionId) => selectSession(sessionId)), []);
+  // Seulement des setters stables et closeArtifact (useCallback) : pas besoin de réabonner.
+  useEffect(
+    () =>
+      window.claude.onFocusSession((sessionId) => {
+        closeArtifact();
+        setSettingsOpen(false);
+        setViewing(null);
+        setProjectId(null);
+        dispatch({ type: 'select', sessionId });
+      }),
+    [closeArtifact],
+  );
 
   /** Export Markdown ou PDF de la conversation affichée. */
   async function exportChat(format: 'md' | 'pdf', title: string, items: ChatItem[]) {
@@ -506,7 +554,7 @@ export function App() {
   return (
     <div className="shell">
     <TitleBar onSettings={() => setSettingsOpen((o) => !o)} settingsOpen={settingsOpen} />
-    <ArtifactContext.Provider value={setArtifact}>
+    <ArtifactContext.Provider value={openArtifact}>
     <div className={artifact && !settingsOpen && !shownProject ? 'app with-artifact' : 'app'}>
       <Sidebar
         sessions={state.sessions}
@@ -627,6 +675,10 @@ export function App() {
             items={active.items}
             running={active.status === 'running'}
             onPermission={(requestId, decision) => window.claude.answerPermission(active.id, requestId, decision)}
+            onRetry={() => {
+              const text = lastUserText(active.items);
+              if (text) send(text);
+            }}
           />
           {shouldSuggestHandoff(active, HANDOFF_THRESHOLD, { enabled: settings.autoHandoff, dismissed: handoffDismissed.has(active.id), phase: phase.phase }) && active.context && (
             <HandoffBanner
@@ -663,7 +715,7 @@ export function App() {
         <Welcome onNew={newSession} />
       )}
       {artifact && !settingsOpen && !shownProject && (
-        <ArtifactPanel artifact={artifact} load={loadArtifact} onSave={(name, text) => void saveArtifact(name, text)} onClose={() => setArtifact(null)} />
+        <ArtifactPanel artifact={artifact} load={loadArtifact} onSave={(name, text) => void saveArtifact(name, text)} onClose={closeArtifact} width={artifactWidth} onResize={(w) => { setArtifactWidth(w); writeArtifactWidth(localStorage, w); }} />
       )}
     </div>
     </ArtifactContext.Provider>

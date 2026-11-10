@@ -20,3 +20,11 @@ Pas de dépendance npm : la page charge `mermaid@11.4.1` (version fixée) depuis
 
 ## Code
 `shared/artifacts.ts`, `main/artifact-store.ts`, `main/index.ts` (protocole), `artifact-context.ts`, `components/artifact-card.tsx`, `components/artifact-panel.tsx`, `message.tsx`.
+
+## Artefacts automatiques (2026-11-10)
+- Réglage « Artefacts automatiques » (Claude, activé par défaut) : la consigne `ARTIFACT_INSTRUCTIONS` est ajoutée à `--append-system-prompt` (après les instructions du projet) pour les nouvelles sessions. Elle dit à Claude de faire UN artefact (Mermaid, SVG ou page HTML autonome) seulement quand un visuel aide, jamais pour du code de projet.
+- À la fin d'une réponse de la session affichée, son dernier artefact (bloc de code, sinon page `.html` / `.svg` écrite) s'ouvre tout seul (`lastArtifact`, `shared/auto-artifact.ts`).
+
+## Panneau
+- Poignée à gauche : glisser (ou flèches gauche / droite au clavier) change la largeur, entre 320 px et 75 % de la fenêtre ; retenue dans localStorage (`mon-claude:artifact-width`).
+- À l'ouverture, la barre latérale se replie ; elle revient à la fermeture seulement si c'est le panneau qui l'avait repliée (Ctrl+B entre-temps = choix de l'utilisateur, respecté).

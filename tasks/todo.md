@@ -1,9 +1,9 @@
-# À faire : modules restants + artefacts
+# À faire : artefacts auto, panneau, Auto, Ctrl+F, Réessayer
 
-- [x] T1 Raccourcis (Ctrl+N, Ctrl+K, Ctrl+Tab) + notification fin de réponse
-- [x] T2 Passation proposée au-delà de 70 % de contexte
-- [x] T3 Fichiers modifiés par réponse, avec diff
-- [x] T4 Artefacts (HTML, SVG, Mermaid) dans un panneau latéral
-- [x] T5 Panneau prompts : modèles + skills
-- [x] T6 Export Markdown / PDF
-- [x] T7 Specs, build, installation, vérification
+- [x] T1 Consigne artefacts dans la session + réglage
+- [x] T2 Ouverture auto de l'aperçu en fin de réponse
+- [x] T3 Panneau redimensionnable + barre latérale repliée
+- [x] T4 Règles Auto ajustées d'après le journal
+- [x] T5 Ctrl+F dans la conversation
+- [x] T6 Bouton « Réessayer »
+- [x] T7 Vérifications, installation, commit

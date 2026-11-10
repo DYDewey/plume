@@ -16,3 +16,7 @@ Tout faire au clavier et savoir quand Claude a fini sans regarder la fenêtre.
 
 ## Limites
 - En dev (`electron.exe` non installé), Windows peut ignorer les notifications : tester avec l'app installée.
+
+## Ajouts 2026-11-10
+- Ctrl+F : barre de recherche en haut de la conversation affichée (ouverte ou relue). Casse et accents ignorés, compteur « n / m », Entrée / Maj+Entrée = suivant / précédent, Échap ferme. Texte surligné avec l'API CSS Custom Highlight (le DOM de React n'est pas modifié). Code : `find.ts`, `chat-view.tsx`.
+- « Réessayer » : sous le dernier élément d'une session ouverte (réponse, erreur ou arrêt), Claude au repos : renvoie le dernier message de l'utilisateur tel quel (`lastUserText`).

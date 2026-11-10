@@ -35,6 +35,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+K', 'Rechercher dans l’historique'],
   ['Ctrl+Tab', 'Conversation ouverte suivante'],
   ['Ctrl+Maj+Tab', 'Conversation ouverte précédente'],
+  ['Ctrl+F', 'Rechercher dans la conversation'],
   ['Ctrl+B', 'Replier ou déplier la barre latérale'],
   ['Ctrl+,', 'Ouvrir les paramètres'],
   ['Échap', 'Fermer un menu ou les paramètres'],
@@ -181,6 +182,9 @@ export function SettingsView({ settings, router, onChange, onRouterChange, onClo
             </Row>
             <Row title="Proposer une passation" hint={`Quand le contexte dépasse ${Math.round(HANDOFF_THRESHOLD * 100)} %, un bandeau propose de repartir d'un résumé : Claude reste précis et le quota dure plus longtemps.`}>
               <Switch label="Proposer une passation" checked={settings.autoHandoff} onChange={(autoHandoff) => onChange({ autoHandoff })} />
+            </Row>
+            <Row title="Artefacts automatiques" hint="Claude fait de lui-même un schéma, un diagramme ou une petite page quand ça aide, et l'aperçu s'ouvre à la fin de la réponse. S'applique aux nouvelles conversations.">
+              <Switch label="Artefacts automatiques" checked={settings.autoArtifacts} onChange={(autoArtifacts) => onChange({ autoArtifacts })} />
             </Row>
           </>
         )}

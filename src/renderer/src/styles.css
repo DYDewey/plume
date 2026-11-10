@@ -679,7 +679,7 @@ button.artifact-card:hover { border-color: var(--accent) !important; transform: 
 .artifact-card > .lucide { color: var(--muted); }
 
 .artifact-panel {
-  flex: 0 0 min(48%, 760px); min-width: 340px; display: flex; flex-direction: column; min-height: 0;
+  position: relative; flex: 0 0 auto; min-width: 320px; display: flex; flex-direction: column; min-height: 0;
   background: var(--panel); border-left: 1px solid var(--border); animation: slide-in 220ms var(--ease);
 }
 .artifact-head { display: flex; align-items: center; gap: var(--sp-2); padding: 8px var(--sp-3); border-bottom: 1px solid var(--border); }
@@ -736,3 +736,27 @@ button.prompt-item { flex: 1; min-width: 0; display: flex; flex-direction: colum
   .msg, .files-card, .code-block { break-inside: avoid-page; }
   details.msg-tool > pre, .diff { display: none; }
 }
+.artifact-resize { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; z-index: 3; cursor: col-resize; touch-action: none; }
+.artifact-resize::after { content: ''; position: absolute; left: 3px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background var(--fade); }
+.artifact-resize:hover::after, .artifact-resize:focus-visible::after, .artifact-panel.dragging .artifact-resize::after { background: var(--accent); }
+.artifact-panel.dragging { animation: none; user-select: none; }
+.artifact-panel.dragging .artifact-frame { pointer-events: none; }
+
+/* Recherche dans la conversation (Ctrl+F) */
+.find-bar {
+  position: sticky; top: 0; z-index: 4; align-self: flex-end; display: flex; align-items: center; gap: 4px;
+  margin: calc(-1 * var(--sp-4)) 0 var(--sp-2) auto; padding: 4px 4px 4px 10px; width: min(420px, 100%); box-sizing: border-box;
+  background: var(--raised); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow-md); animation: fade-in var(--fade);
+}
+.find-bar > .lucide { color: var(--muted); flex-shrink: 0; }
+.find-bar input { flex: 1; min-width: 0; font: inherit; font-size: var(--fs-sm); color: var(--text); background: transparent; border: 0; outline: none; padding: 4px 6px; }
+.find-count { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; min-width: 3.5em; text-align: right; }
+.msg-match.current { box-shadow: 0 0 0 2px var(--accent); }
+::highlight(find-all) { background-color: color-mix(in srgb, var(--warn) 35%, transparent); color: inherit; }
+::highlight(find-current) { background-color: var(--accent); color: var(--on-accent); }
+
+/* Réessayer sous la dernière réponse */
+.msg-actions { display: flex; margin-top: calc(-1 * var(--sp-2)); }
+.retry-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: var(--fs-xs); color: var(--muted); }
+.retry-btn:hover:not(:disabled) { color: var(--text); }
+.find-bar input::-webkit-search-cancel-button { display: none; }

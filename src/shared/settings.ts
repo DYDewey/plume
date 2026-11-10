@@ -17,6 +17,8 @@ export interface Settings {
   notify: boolean;
   /** Proposer une passation quand le contexte dépasse HANDOFF_THRESHOLD. */
   autoHandoff: boolean;
+  /** Claude produit des artefacts (page HTML, SVG, Mermaid) quand un visuel aide ; aperçu ouvert tout seul. */
+  autoArtifacts: boolean;
 }
 
 /** Part du contexte à partir de laquelle la passation est proposée. */
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showTechnical: false,
   notify: true,
   autoHandoff: true,
+  autoArtifacts: true,
 };
 
 const CHOICES = {
@@ -44,7 +47,7 @@ export function parseSettings(value: unknown, base: Settings = DEFAULT_SETTINGS)
   const o = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   const pick = <K extends keyof typeof CHOICES>(key: K): Settings[K] =>
     (CHOICES[key] as readonly unknown[]).includes(o[key]) ? (o[key] as Settings[K]) : base[key];
-  const bool = (key: 'showTechnical' | 'notify' | 'autoHandoff'): boolean =>
+  const bool = (key: 'showTechnical' | 'notify' | 'autoHandoff' | 'autoArtifacts'): boolean =>
     typeof o[key] === 'boolean' ? (o[key] as boolean) : base[key];
   return {
     theme: pick('theme'),
@@ -54,5 +57,6 @@ export function parseSettings(value: unknown, base: Settings = DEFAULT_SETTINGS)
     showTechnical: bool('showTechnical'),
     notify: bool('notify'),
     autoHandoff: bool('autoHandoff'),
+    autoArtifacts: bool('autoArtifacts'),
   };
 }

@@ -5,12 +5,13 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification } from 'electron';
 import { notificationBody } from '../shared/notify';
+import { ARTIFACT_INSTRUCTIONS, joinPrompts } from '../shared/artifacts';
 import { cleanFileName } from '../shared/export';
 import { loadSettings, saveSettings } from './settings-store';
 import { IPC } from '../shared/api';
 import { isPermissionDecision } from '../shared/events';
 import { isModelChoice } from '../shared/model';
-import { decideRoute, ruleRoute } from '../shared/auto-route';
+import { decideRoute, isContinuation, ruleRoute } from '../shared/auto-route';
 import { askJudge, askTitle, logRoute } from './judge';
 import { titleExcerpt } from '../shared/auto-title';
 import { isSessionId } from './claude-args';
@@ -93,7 +94,7 @@ export function registerClaudeIpc(): SessionManager {
       }
     },
     {
-      promptFor: (cwd) => promptForCwd(organize, cwd, existsSync),
+      promptFor: (cwd) => joinPrompts(promptForCwd(organize, cwd, existsSync), settings.autoArtifacts ? ARTIFACT_INSTRUCTIONS : null),
       launcher: () => launcher,
       permissionMode: () => settings.permissionMode,
     },
@@ -133,7 +134,8 @@ export function registerClaudeIpc(): SessionManager {
       contextUsed: typeof contextUsed === 'number' ? contextUsed : undefined,
     };
     const rule = ruleRoute(text);
-    const judge = text.trim().startsWith('/') ? null : await askJudge(text, { token: launcher === DIRECT ? null : readRouterToken() });
+    // Commande ou simple « vas-y » : le modèle en cours est gardé, inutile de consulter le juge.
+    const judge = text.trim().startsWith('/') || (ctx.current && isContinuation(text)) ? null : await askJudge(text, { token: launcher === DIRECT ? null : readRouterToken() });
     const route = decideRoute(text, rule, judge, ctx);
     void logRoute(routeLog, text, rule, judge, route);
     return route;
