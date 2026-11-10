@@ -27,9 +27,10 @@ Elle garde tout l'historique consultable ; après une passation, la nouvelle ses
 | `auto-handoff` | passation proposée automatiquement au-delà d'un seuil de contexte | usage, handoff |
 | `files` | fichiers modifiés par Claude à chaque réponse, avec aperçu des changements | chat |
 | `export` | exporter une conversation en Markdown ou PDF | history |
+| `updates` | mises à jour automatiques depuis les Releases GitHub (sha256 vérifié, installeur silencieux, relance) | packaging |
 | `artifacts` | pages HTML, SVG et diagrammes Mermaid de Claude affichés dans un panneau à droite (iframe isolée, protocole `artifact://`) | chat, files |
 
-Ordre : `cli-bridge` ✅ → `chat` ✅ → `usage` ✅ → `history` ✅ → `handoff` ✅ → `model` ✅ → `attachments` ✅ → `packaging` ✅ → `ui` ✅ → `organize` ✅ → `projects` ✅ → `search` ✅ → `continue` ✅ → `permissions` ✅ → `shortcuts` ✅ → `prompts` ✅ → `auto-handoff` ✅ → `files` ✅ → `export` ✅ → `auto-model` ✅ → `artifacts` ✅ (ajouté le 2026-11-10). (8 derniers ajoutés le 2026-10-25 ; `ui` ajouté le 2026-10-25 ; `usage` et `packaging` ajoutés le 2026-10-24, `model` aussi.)
+Ordre : `cli-bridge` ✅ → `chat` ✅ → `usage` ✅ → `history` ✅ → `handoff` ✅ → `model` ✅ → `attachments` ✅ → `packaging` ✅ → `ui` ✅ → `organize` ✅ → `projects` ✅ → `search` ✅ → `continue` ✅ → `permissions` ✅ → `shortcuts` ✅ → `prompts` ✅ → `auto-handoff` ✅ → `files` ✅ → `export` ✅ → `auto-model` ✅ → `artifacts` ✅ (ajouté le 2026-11-10) → `updates` ✅ (2026-11-10). (8 derniers ajoutés le 2026-10-25 ; `ui` ajouté le 2026-10-25 ; `usage` et `packaging` ajoutés le 2026-10-24, `model` aussi.)
 Chaque module a sa spec : `SPEC-<module>.md`. Ce fichier est l'index.
 
 ## Objectif

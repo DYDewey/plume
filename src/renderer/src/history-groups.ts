@@ -9,6 +9,17 @@ export function isTechnicalProject(p: Pick<HistoryProject, 'folder' | 'path'>): 
   return /claude-mem|AppData-Local-Temp/i.test(p.folder) || /[\\/]\.claude-mem([\\/]|$)|[\\/]AppData[\\/]Local[\\/]Temp[\\/]/i.test(p.path ?? '');
 }
 
+/** Dossier des conversations « sans dossier » de l'app (%APPDATA%/mon-claude/discussions). */
+export function isChatFolder(p: Pick<HistoryProject, 'folder' | 'path'>): boolean {
+  return /mon-claude-discussions$/i.test(p.folder) || /[\\/]mon-claude[\\/]discussions[\\/]?$/i.test(p.path ?? '');
+}
+
+/** Nom affiché du projet : « Discussion » pour une conversation sans dossier, sinon le dernier dossier du chemin. */
+export function projectName(p: Pick<HistoryProject, 'folder' | 'path'>): string {
+  if (isChatFolder(p)) return 'Discussion';
+  return p.path ? folderLabel(p.path) : p.folder;
+}
+
 export interface HistoryRow {
   folder: string;
   session: HistorySession;
@@ -36,7 +47,7 @@ export function groupByDate(projects: HistoryProject[], now: number): HistoryGro
     ['Plus ancien', -Infinity],
   ];
   const rows = projects
-    .flatMap((p) => p.sessions.map((session) => ({ folder: p.folder, session, project: p.path ? folderLabel(p.path) : p.folder })))
+    .flatMap((p) => p.sessions.map((session) => ({ folder: p.folder, session, project: projectName(p) })))
     .sort((a, b) => b.session.lastAt - a.session.lastAt);
   const groups = bounds.map(([label]) => ({ label, rows: [] as HistoryRow[] }));
   for (const row of rows) {

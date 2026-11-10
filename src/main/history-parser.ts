@@ -92,13 +92,15 @@ export function parseSession(lines: string[]): ParsedSession {
       continue;
     }
     if (!Array.isArray(content)) continue;
+    // uuid de la ligne : point de reprise pour « Modifier » un message suivant.
+    const uuid = typeof o.uuid === 'string' ? { uuid: o.uuid } : {};
     for (const b of content as Block[]) {
       if (b.type === 'text' && typeof b.text === 'string' && b.text.trim()) {
-        items.push({ kind: 'assistant', text: b.text });
+        items.push({ kind: 'assistant', text: b.text, ...uuid });
         messageCount++;
       } else if (b.type === 'tool_use' && typeof b.name === 'string') {
         const input = b.input && typeof b.input === 'object' ? (b.input as Record<string, unknown>) : {};
-        items.push({ kind: 'tool', name: b.name, input });
+        items.push({ kind: 'tool', name: b.name, input, ...uuid });
       }
     }
   }

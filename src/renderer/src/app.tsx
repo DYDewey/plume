@@ -4,7 +4,7 @@ import { initialTrack, titleRequest, type TitleTrack } from './auto-title-flow';
 import type { ChatItem } from '../../shared/chat-item';
 import { buildHandoffPrompt } from '../../shared/handoff';
 import type { HistoryProject } from '../../shared/history';
-import { displayTitle, emptyOrganize, renameSession, sessionKey, toggleFavorite, type OrganizeData } from '../../shared/organize';
+import { displayTitle, emptyOrganize, renameSession, sessionKey, toggleFavorite, toggleHidden, type OrganizeData } from '../../shared/organize';
 import { ChatView } from './components/chat-view';
 import { Composer } from './components/composer';
 import { HandoffButton } from './components/handoff-button';
@@ -35,7 +35,7 @@ import { TitleBar } from './components/title-bar';
 import { readArtifactWidth, writeArtifactWidth, HISTORY_SEARCH_ID, isCtrlLetter, isSettingsShortcut, isSidebarToggle, neighborSession, readCollapsed, tabDirection, writeCollapsed } from './ui-format';
 import { handoffPhase, shouldSuggestHandoff, type HandoffPhase, type PendingHandoff } from './handoff-flow';
 import { HandoffBanner } from './components/handoff-banner';
-import { initialState, lastUserText, sessionsReducer, type ChatState, type Limits, type SessionState } from './state/sessions';
+import { initialState, lastUserText, resumePoint, sessionsReducer, type ChatState, type Limits, type SessionState } from './state/sessions';
 
 const COMMANDS_KEY = 'commands';
 const LIMITS_KEY = 'limits';
@@ -105,6 +105,8 @@ export function App() {
       setNotice('Modèles non enregistrés : stockage indisponible');
     }
   }
+  // Stable : sinon chaque rendu redemanderait les miniatures.
+  const thumbnail = useCallback((path: string) => window.claude.thumbnail(path), []);
   const promptProps = {
     prompts,
     onSavePrompt: (text: string) => {
@@ -112,6 +114,7 @@ export function App() {
       setNotice('Modèle enregistré');
     },
     onDeletePrompt: (id: string) => changePrompts(removePrompt(prompts, id)),
+    thumbnail,
   };
   // Artefact ouvert dans le panneau de droite.
   const [artifact, setArtifact] = useState<Artifact | null>(null);
@@ -145,6 +148,26 @@ export function App() {
     return () => clearTimeout(t);
   }, [notice]);
   // Sessions où l'on a répondu « Plus tard » au bandeau de passation.
+  // Mise à jour trouvée par main (GitHub Releases) ; progress pendant le téléchargement.
+  const [update, setUpdate] = useState<{ version: string; progress?: number } | null>(null);
+  const [appVersion, setAppVersion] = useState<string>();
+  useEffect(() => {
+    window.claude.appVersion().then(setAppVersion, () => {});
+    return window.claude.onUpdate((e) => {
+      if (e.type === 'available') setUpdate((u) => (u?.progress !== undefined ? u : { version: e.info.version }));
+      else setUpdate((u) => (u ? { ...u, progress: e.ratio } : u));
+    });
+  }, []);
+  async function installUpdate() {
+    if (!update) return;
+    setUpdate({ ...update, progress: 0 });
+    try {
+      await window.claude.installUpdate(); // l'app se ferme toute seule à la fin
+    } catch (err) {
+      setUpdate({ version: update.version });
+      setNotice(`Mise à jour impossible : ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
   // Accueil affiché par « Nouvelle conversation » même si des conversations sont ouvertes.
   const [home, setHome] = useState(false);
   const [handoffDismissed, setHandoffDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -417,6 +440,29 @@ export function App() {
   // La suite part dans une copie : l'ancien .jsonl n'est jamais touché, les anciens messages restent affichés.
   const [resuming, setResuming] = useState(false);
   /** Reprend l'ancienne conversation affichée (dans une copie, l'original reste intact) et y envoie `text`. */
+  /**
+   * Modifier le message `index` : copie de la conversation jusqu'à la réponse de Claude qui le précède
+   * (--resume-session-at), puis envoi du nouveau texte. L'original reste intact dans l'historique.
+   */
+  async function editMessage(source: { id: string; cwd: string; items: ChatItem[]; title: string; setting: ModelSetting | undefined }, index: number, text: string, replaces: boolean) {
+    const at = resumePoint(source.items, index);
+    const model = launchModel(source.setting);
+    try {
+      const sessionId = await window.claude.startSession(source.cwd, at ? { model, forkFrom: source.id, resumeAt: at } : { model });
+      if (replaces) {
+        window.claude.stopSession(source.id);
+        dispatch({ type: 'session-closed', sessionId: source.id });
+      }
+      setViewing(null);
+      setHome(false);
+      closeArtifact();
+      dispatch({ type: 'session-opened', sessionId, cwd: source.cwd, model: source.setting, title: source.title, items: at ? source.items.slice(0, index) : [] });
+      void deliver({ id: sessionId, model, auto: source.setting === 'auto' }, text);
+    } catch (err) {
+      setNotice(`Modification impossible : ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   async function continueViewing(text: string) {
     if (!viewing?.path || !viewing.items) return;
     const { id, key, path: cwd, items } = viewing;
@@ -585,7 +631,12 @@ export function App() {
 
   return (
     <div className="shell">
-    <TitleBar onSettings={() => setSettingsOpen((o) => !o)} settingsOpen={settingsOpen} />
+    <TitleBar
+      onSettings={() => setSettingsOpen((o) => !o)}
+      settingsOpen={settingsOpen}
+      update={update ? { ...update, blocked: state.sessions.some((s) => s.status === 'running') } : undefined}
+      onUpdate={() => void installUpdate()}
+    />
     <ArtifactContext.Provider value={openArtifact}>
     <div className={artifact && !settingsOpen && !shownProject ? 'app with-artifact' : 'app'}>
       <Sidebar
@@ -630,6 +681,7 @@ export function App() {
           onToggleFavorite={(key) => updateOrganize(toggleFavorite(organize, key))}
           onRename={(key, title) => updateOrganize(renameSession(organize, key, title))}
           showTechnical={settings.showTechnical}
+          onToggleHidden={(key) => updateOrganize(toggleHidden(organize, key))}
         />
       </Sidebar>
       {settingsOpen ? (
@@ -639,6 +691,8 @@ export function App() {
           onChange={changeSettings}
           onRouterChange={changeRouter}
           onClose={closeSettings}
+          version={appVersion}
+          onCheckUpdate={() => window.claude.checkUpdate().then((info) => info?.version ?? null)}
         />
       ) : shownProject && projectId ? (
         <ProjectView
@@ -661,6 +715,11 @@ export function App() {
           onToggleFavorite={() => updateOrganize(toggleFavorite(organize, viewing.key))}
           onRename={(title) => updateOrganize(renameSession(organize, viewing.key, title))}
           folderMissing={viewing.folderMissing}
+          onEdit={(index, text) => {
+            if (!viewing.path || !viewing.items) return;
+            const title = displayTitle(viewing, organize.sessions[viewing.key]);
+            void editMessage({ id: viewing.id, cwd: viewing.path, items: viewing.items, title, setting: lastModel }, index, text, false);
+          }}
           actions={
             <ExportMenu
               disabled={!viewing.items?.length}
@@ -707,6 +766,9 @@ export function App() {
             items={active.items}
             running={active.status === 'running'}
             onPermission={(requestId, decision) => window.claude.answerPermission(active.id, requestId, decision)}
+            onEdit={(index, text) =>
+              void editMessage({ id: active.id, cwd: active.cwd, items: active.items, title: active.title, setting: active.auto ? 'auto' : active.model }, index, text, true)
+            }
             onRetry={() => {
               const text = lastUserText(active.items);
               if (text) send(text);
@@ -759,7 +821,19 @@ export function App() {
               commands={state.commands}
               sendKey={settings.sendKey}
               {...promptProps}
-              tools={<FolderChip folder={welcomeFolder} onPick={() => void pickWelcomeFolder()} onClear={() => setWelcomeFolder(null)} />}
+              tools={
+                <>
+                  <ModelPicker
+                    value={lastModel}
+                    disabled={false}
+                    onChange={(model) => {
+                      setLastModel(model);
+                      writeLastModel(localStorage, model);
+                    }}
+                  />
+                  <FolderChip folder={welcomeFolder} onPick={() => void pickWelcomeFolder()} onClear={() => setWelcomeFolder(null)} />
+                </>
+              }
             />
           }
         />

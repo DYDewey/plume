@@ -1,11 +1,11 @@
-import { RotateCw, Search } from 'lucide-react';
+import { ChevronRight, Eye, EyeOff, RotateCw, Search } from 'lucide-react';
 import { useState } from 'react';
 import type { HistoryProject, HistorySession } from '../../../shared/history';
 import type { SearchHit } from '../../../shared/search';
 import { displayTitle, emptyOrganize, sessionKey, type OrganizeData } from '../../../shared/organize';
-import { filterHistory, folderLabel, HISTORY_SEARCH_ID } from '../ui-format';
+import { filterHistory, HISTORY_SEARCH_ID } from '../ui-format';
 import { ago } from '../usage-format';
-import { groupByDate, isTechnicalProject, shortWhen } from '../history-groups';
+import { groupByDate, isTechnicalProject, projectName, shortWhen } from '../history-groups';
 import { FavoriteButton } from './favorite-button';
 import { SearchResults, useContentSearch } from './search-results';
 import { RenameButton, RenameField } from './rename-field';
@@ -29,11 +29,13 @@ interface Props {
   initialQuery?: string;
   /** Réglage : montrer aussi les sessions techniques (claude-mem…). */
   showTechnical?: boolean;
+  /** Masquer / réafficher une conversation (organize.json). */
+  onToggleHidden?: (key: string) => void;
 }
 
-/** Dernier dossier du vrai chemin (« mon-claude »), sinon le nom encodé du dossier. */
+/** « Discussion » pour une conversation sans dossier, sinon le dernier dossier du vrai chemin (« mon-claude »). */
 export function projectLabel(project: HistoryProject): string {
-  return project.path ? folderLabel(project.path) : project.folder;
+  return projectName(project);
 }
 
 const NO_ORGANIZE = emptyOrganize();
@@ -52,14 +54,23 @@ export function HistoryList({
   initialQuery = '',
   search = searchInMain,
   showTechnical = false,
+  onToggleHidden = () => {},
 }: Props) {
   const [query, setQuery] = useState(initialQuery);
   /** Clé de la session en cours de renommage. */
   const [editing, setEditing] = useState<string | null>(null);
   const titleOf = (folder: string, s: HistorySession) => displayTitle(s, organize.sessions[sessionKey(folder, s.id)]);
   const searching = query.trim() !== '';
-  const visible = showTechnical ? projects : projects.filter((p) => !isTechnicalProject(p));
+  const isHidden = (folder: string, id: string) => !!organize.sessions[sessionKey(folder, id)]?.hidden;
+  const visible = (showTechnical ? projects : projects.filter((p) => !isTechnicalProject(p)))
+    .map((p) => ({ ...p, sessions: p.sessions.filter((s) => !isHidden(p.folder, s.id)) }))
+    .filter((p) => p.sessions.length > 0);
   const shown = filterHistory(visible, query, titleOf);
+  // Masquées : à part, en bas, repliées (rien n'est supprimé).
+  const hidden = groupByDate(
+    projects.map((p) => ({ ...p, sessions: p.sessions.filter((s) => isHidden(p.folder, s.id)) })),
+    now,
+  ).flatMap((g) => g.rows);
   const contentResults = useContentSearch(query, search);
   return (
     <section className="history">
@@ -112,6 +123,18 @@ export function HistoryList({
                       </span>
                       <RenameButton onClick={() => setEditing(key)} />
                       <FavoriteButton on={!!organize.sessions[key]?.favorite} onToggle={() => onToggleFavorite(key)} />
+                      <button
+                        type="button"
+                        className="btn-icon hide-btn"
+                        aria-label={`Masquer « ${title} »`}
+                        title="Masquer de l'historique (rien n'est supprimé)"
+                        onClick={(e) => {
+                          e.stopPropagation(); // sinon le clic ouvre aussi la conversation
+                          onToggleHidden(key);
+                        }}
+                      >
+                        <EyeOff size={14} aria-hidden />
+                      </button>
                     </>
                   )}
                 </li>
@@ -120,6 +143,39 @@ export function HistoryList({
           </ul>
         </div>
       ))}
+      {hidden.length > 0 && !searching && (
+        <details className="history-hidden">
+          <summary>
+            <ChevronRight size={14} aria-hidden className="chev" /> Masquées ({hidden.length})
+          </summary>
+          <ul>
+            {hidden.map(({ folder, session: s, project }) => {
+              const key = sessionKey(folder, s.id);
+              const title = titleOf(folder, s);
+              return (
+                <li key={key} className="history-item hidden-item" onClick={() => onOpen(folder, s.id)} title={title}>
+                  <span className="history-text">
+                    <span className="sidebar-title">{title}</span>
+                    <span className="history-meta">{project} · {shortWhen(s.lastAt, now)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    aria-label={`Réafficher « ${title} »`}
+                    title="Réafficher dans l'historique"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleHidden(key);
+                    }}
+                  >
+                    <Eye size={14} aria-hidden />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
       <SearchResults results={contentResults} organize={organize} onOpen={onOpen} />
     </section>
   );

@@ -31,7 +31,8 @@ export function codeLanguage(pre: HastNode | undefined): string {
   return list.find((c) => c.startsWith('language-'))?.slice('language-'.length) ?? '';
 }
 
-function CopyButton({ text }: { text: string }) {
+/** Bouton Copier : « Copié » pendant 2 s. `what` sert au nom lu par les lecteurs d'écran. */
+export function CopyButton({ text, what = 'le code', className = 'code-copy' }: { text: string; what?: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -41,8 +42,8 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       type="button"
-      className="btn-icon code-copy"
-      aria-label={copied ? 'Copié' : 'Copier le code'}
+      className={`btn-icon ${className}`}
+      aria-label={copied ? 'Copié' : `Copier ${what}`}
       title={copied ? 'Copié' : 'Copier'}
       onClick={() => navigator.clipboard.writeText(text).then(() => setCopied(true), () => {})}
     >

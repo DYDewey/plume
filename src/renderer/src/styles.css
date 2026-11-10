@@ -790,3 +790,35 @@ button.recent-card:hover { border-color: var(--border) !important; transform: tr
 .folder-chip-wrap { display: inline-flex; align-items: center; gap: 2px; }
 .folder-chip-wrap.set button.folder-chip { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)) !important; }
 button.folder-clear { width: 22px; height: 22px; padding: 0; }
+
+/* Actions sous une réponse de Claude (au survol) */
+.msg-turn { display: flex; flex-direction: column; }
+.msg-tools { display: flex; gap: 4px; margin-top: 2px; opacity: 0; transition: opacity var(--fade); }
+.msg-turn:hover .msg-tools, .msg-tools:focus-within { opacity: 1; }
+button.msg-copy { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; font-size: var(--fs-xs); color: var(--muted); }
+button.msg-copy:hover:not(:disabled) { color: var(--text); }
+.attachment-thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; margin: -2px 2px -2px -4px; flex-shrink: 0; }
+
+/* Historique : masquer une conversation (bouton au survol), groupe « Masquées » replié en bas */
+.history-item .hide-btn { display: none; }
+.history-item:hover .hide-btn, .history-item:focus-within .hide-btn { display: inline-flex; }
+.history-hidden { margin-top: var(--sp-2); }
+.history-hidden > summary { display: flex; align-items: center; gap: 4px; padding: 4px 12px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); cursor: pointer; list-style: none; }
+.history-hidden > summary::-webkit-details-marker { display: none; }
+.history-hidden .chev { transition: transform var(--fade); }
+.history-hidden[open] .chev { transform: rotate(90deg); }
+.hidden-item .sidebar-title { color: var(--muted); }
+
+/* Message de l'utilisateur : « Modifier » au survol, zone d'édition en place */
+.msg-turn.user { align-items: flex-end; }
+.msg-edit { align-self: stretch; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); background: var(--panel); border: 1px solid var(--accent); border-radius: var(--r-lg); }
+.msg-edit textarea { font: inherit; font-size: var(--fs-md); line-height: 1.55; color: var(--text); background: transparent; border: 0; outline: none; resize: vertical; }
+.msg-edit-bar { display: flex; align-items: center; gap: var(--sp-2); }
+.msg-edit-bar .muted { flex: 1; font-size: var(--fs-xs); }
+.msg-edit-bar button { padding: 5px 12px; font-size: var(--fs-sm); }
+
+/* Mise à jour disponible (barre de titre) */
+button.update-pill {
+  -webkit-app-region: no-drag; display: inline-flex; align-items: center; gap: 6px; margin-right: var(--sp-2); padding: 4px 12px;
+  font-size: var(--fs-xs); font-weight: 600; border-radius: var(--r-pill); animation: fade-in var(--fade);
+}

@@ -1,11 +1,11 @@
-import { ChevronDown, ChevronUp, CircleStop, RotateCcw, Search, TriangleAlert, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleStop, Pencil, RotateCcw, Search, TriangleAlert, X } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ChatItem } from '../../../shared/chat-item';
 import type { PermissionDecision } from '../../../shared/events';
 import { fileChanges, turnRanges, type FileChange } from '../../../shared/file-changes';
 import { findMatches, occurrences, stepMatch } from '../find';
 import { FilesCard } from './files-card';
-import { Markdown } from './message';
+import { CopyButton, Markdown } from './message';
 import { PermissionCard } from './permission-card';
 import { ToolLine } from './tool-line';
 
@@ -17,6 +17,41 @@ interface Props {
   onPermission?: (requestId: string, decision: PermissionDecision) => void;
   /** Renvoie le dernier message (bouton « Réessayer » sous la dernière réponse) ; absent : pas de bouton. */
   onRetry?: () => void;
+  /** Modifier un message déjà envoyé : la conversation repart de là avec le nouveau texte. Absent : pas de bouton. */
+  onEdit?: (index: number, text: string) => void;
+}
+
+/** Zone d'édition d'un message envoyé : Entrée envoie, Maj+Entrée va à la ligne, Échap annule. */
+function EditBox({ initial, onSave, onCancel }: { initial: string; onSave: (text: string) => void; onCancel: () => void }) {
+  const [text, setText] = useState(initial);
+  const save = () => {
+    if (text.trim()) onSave(text.trim());
+  };
+  return (
+    <div className="msg-edit">
+      <textarea
+        value={text}
+        autoFocus
+        rows={Math.min(10, text.split('\n').length + 1)}
+        aria-label="Modifier le message"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            save();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+      />
+      <div className="msg-edit-bar">
+        <span className="muted">La conversation repartira de ce message ; la suite actuelle reste dans l'historique.</span>
+        <button type="button" className="btn-secondary" onClick={onCancel}>Annuler</button>
+        <button type="button" onClick={save} disabled={!text.trim()}>Envoyer</button>
+      </div>
+    </div>
+  );
 }
 
 /** Ctrl+F seul (sans Maj, Alt ni Windows). */
@@ -52,7 +87,9 @@ function paintHighlights(root: HTMLElement | null, indices: number[], current: n
   CSS.highlights.set(HL_CURRENT, new Highlight(...cur));
 }
 
-export function ChatView({ items, running, focusIndex, onPermission, onRetry }: Props) {
+export function ChatView({ items, running, focusIndex, onPermission, onRetry, onEdit }: Props) {
+  /** Index du message en cours de modification. */
+  const [editing, setEditing] = useState<number | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const found = useRef<HTMLDivElement>(null);
   const column = useRef<HTMLDivElement>(null);
@@ -118,11 +155,43 @@ export function ChatView({ items, running, focusIndex, onPermission, onRetry }: 
     const hit = searching && matches.includes(i) ? (matches[at] === i ? ' msg-match current' : ' msg-match') : '';
     switch (item.kind) {
       case 'user':
-        return <div key={i} data-i={i} ref={i === focusIndex ? found : undefined} className={`msg msg-user${mark(i)}${hit}`}>{item.text}</div>;
+        if (editing === i && onEdit) {
+          return (
+            <EditBox
+              key={i}
+              initial={item.text}
+              onCancel={() => setEditing(null)}
+              onSave={(text) => {
+                setEditing(null);
+                onEdit(i, text);
+              }}
+            />
+          );
+        }
+        return (
+          <div key={i} className="msg-turn user">
+            <div data-i={i} ref={i === focusIndex ? found : undefined} className={`msg msg-user${mark(i)}${hit}`}>{item.text}</div>
+            {onEdit && !running && (
+              <div className="msg-tools">
+                <button type="button" className="btn-icon msg-copy" onClick={() => setEditing(i)} aria-label="Modifier ce message" title="Modifier et renvoyer">
+                  <Pencil size={14} aria-hidden /> <span>Modifier</span>
+                </button>
+              </div>
+            )}
+          </div>
+        );
       case 'assistant':
         return (
-          <div key={i} data-i={i} ref={i === focusIndex ? found : undefined} className={`msg msg-claude${mark(i)}${hit}`}>
-            <Markdown text={item.text} />
+          <div key={i} className="msg-turn">
+            <div data-i={i} ref={i === focusIndex ? found : undefined} className={`msg msg-claude${mark(i)}${hit}`}>
+              <Markdown text={item.text} />
+            </div>
+            {/* Pas pendant que Claude écrit encore ce message. */}
+            {!(running && i === items.length - 1) && (
+              <div className="msg-tools">
+                <CopyButton text={item.text} what="la réponse" className="msg-copy" />
+              </div>
+            )}
           </div>
         );
       case 'tool':

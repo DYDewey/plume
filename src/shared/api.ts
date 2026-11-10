@@ -6,10 +6,14 @@ import type { ModelChoice } from './model';
 import type { OrganizeData } from './organize';
 import type { SearchHit } from './search';
 import type { Settings } from './settings';
+import type { UpdateInfo } from './update';
+
+export type UpdateEvent = { type: 'available'; info: UpdateInfo } | { type: 'progress'; ratio: number };
 
 // API exposée au renderer sous `window.claude` par le preload.
 export interface ClaudeApi {
-  startSession(cwd: string, opts?: { resumeId?: string; model?: ModelChoice; forkFrom?: string }): Promise<string>;
+  /** `resumeAt` (avec forkFrom) : la copie s'arrête à ce message de Claude. */
+  startSession(cwd: string, opts?: { resumeId?: string; model?: ModelChoice; forkFrom?: string; resumeAt?: string }): Promise<string>;
   sendMessage(sessionId: string, text: string): void;
   /** Ouvre la boîte de dialogue Windows ; renvoie le dossier choisi, ou null si annulé. */
   pickFolder(): Promise<string | null>;
@@ -59,6 +63,16 @@ export interface ClaudeApi {
   exportPdf(defaultName: string): Promise<string | null>;
   /** Dossier des conversations « sans dossier » (%APPDATA%/mon-claude/discussions), créé si besoin. */
   chatFolder(): Promise<string>;
+  /** Miniature (data URL, 96 px de haut) d'une image jointe ; null si ce n'est pas une image lisible. */
+  thumbnail(path: string): Promise<string | null>;
+  /** Version de l'app (package.json). */
+  appVersion(): Promise<string>;
+  /** Cherche une nouvelle version sur GitHub (Releases) ; null s'il n'y en a pas. */
+  checkUpdate(): Promise<UpdateInfo | null>;
+  /** Télécharge et vérifie la dernière version trouvée, lance l'installeur puis ferme l'app. */
+  installUpdate(): Promise<void>;
+  /** Nouvelle version trouvée (vérification auto) ou progression du téléchargement. */
+  onUpdate(cb: (event: UpdateEvent) => void): () => void;
   /** Confie une page d'artefact au main ; renvoie l'adresse artifact:// à mettre dans l'iframe. */
   showArtifact(html: string): Promise<string>;
 }
@@ -92,4 +106,9 @@ export const IPC = {
   exportPdf: 'export:pdf',
   showArtifact: 'artifact:show',
   chatFolder: 'chat:folder',
+  thumbnail: 'files:thumb',
+  appVersion: 'app:version',
+  updateCheck: 'update:check',
+  updateInstall: 'update:install',
+  updateEvent: 'update:event',
 } as const;

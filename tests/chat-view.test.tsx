@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { ChatView, isFindShortcut } from '../src/renderer/src/components/chat-view';
 import type { ChatItem } from '../src/shared/chat-item';
-import { lastUserText } from '../src/renderer/src/state/sessions';
+import { lastUserText, resumePoint } from '../src/renderer/src/state/sessions';
 
 const items: ChatItem[] = [
   { kind: 'user', text: 'premier' },
@@ -35,5 +35,24 @@ describe('Ctrl+F', () => {
     const k = { key: 'f', ctrlKey: true, shiftKey: false, altKey: false, metaKey: false };
     expect(isFindShortcut(k)).toBe(true);
     expect(isFindShortcut({ ...k, shiftKey: true })).toBe(false);
+  });
+});
+
+describe('Modifier un message', () => {
+  it('point de reprise : dernier message de Claude avant, sinon rien', () => {
+    const its: ChatItem[] = [
+      { kind: 'user', text: 'a' },
+      { kind: 'assistant', text: 'b', uuid: 'u1' },
+      { kind: 'tool', name: 'Read', input: {}, uuid: 'u2' },
+      { kind: 'user', text: 'c' },
+    ];
+    expect(resumePoint(its, 3)).toBe('u2');
+    expect(resumePoint(its, 0)).toBeNull();
+  });
+
+  it('bouton « Modifier » seulement au repos et avec onEdit', () => {
+    expect(renderToStaticMarkup(<ChatView items={items} running={false} onEdit={() => {}} />)).toContain('Modifier ce message');
+    expect(renderToStaticMarkup(<ChatView items={items} running onEdit={() => {}} />)).not.toContain('Modifier ce message');
+    expect(renderToStaticMarkup(<ChatView items={items} running={false} />)).not.toContain('Modifier ce message');
   });
 });

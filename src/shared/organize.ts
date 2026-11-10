@@ -6,6 +6,8 @@ import { parseProjects, type Project } from './projects';
 export interface SessionMeta {
   favorite?: true;
   title?: string;
+  /** Masquée de l'historique de l'app (le fichier de Claude Code n'est pas touché). */
+  hidden?: true;
 }
 
 export interface OrganizeData {
@@ -27,7 +29,7 @@ export function emptyOrganize(): OrganizeData {
 /** Remplace l'entrée `key` ; si elle n'a plus aucun champ, elle disparaît. */
 function withMeta(data: OrganizeData, key: string, meta: SessionMeta): OrganizeData {
   const sessions = { ...data.sessions };
-  if (meta.favorite || meta.title) sessions[key] = meta;
+  if (meta.favorite || meta.title || meta.hidden) sessions[key] = meta;
   else delete sessions[key];
   return { ...data, sessions };
 }
@@ -40,8 +42,15 @@ export function toggleFavorite(data: OrganizeData, key: string): OrganizeData {
 /** Nom vide ou fait d'espaces : on revient au titre d'origine. */
 export function renameSession(data: OrganizeData, key: string, title: string): OrganizeData {
   const name = title.trim();
-  const favorite = data.sessions[key]?.favorite;
-  return withMeta(data, key, { ...(favorite && { favorite }), ...(name && { title: name }) });
+  const meta = { ...data.sessions[key] };
+  delete meta.title;
+  return withMeta(data, key, { ...meta, ...(name && { title: name }) });
+}
+
+/** Masque ou réaffiche une conversation dans l'historique de l'app. */
+export function toggleHidden(data: OrganizeData, key: string): OrganizeData {
+  const { hidden, ...rest } = data.sessions[key] ?? {};
+  return withMeta(data, key, hidden ? rest : { ...rest, hidden: true });
 }
 
 export function displayTitle(session: Pick<HistorySession, 'title'>, meta: SessionMeta | undefined): string {
@@ -80,7 +89,8 @@ export function parseOrganize(text: string): OrganizeData | null {
     const meta: SessionMeta = {};
     if (value.favorite === true) meta.favorite = true;
     if (typeof value.title === 'string' && value.title.trim()) meta.title = value.title.trim();
-    if (meta.favorite || meta.title) data.sessions[key] = meta;
+    if (value.hidden === true) meta.hidden = true;
+    if (meta.favorite || meta.title || meta.hidden) data.sessions[key] = meta;
   }
   const projects = parseProjects(raw.projects);
   if (Object.keys(projects).length > 0) data.projects = projects;

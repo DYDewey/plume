@@ -1,6 +1,6 @@
 import { ArrowUp, NotebookTabs, Paperclip, Square, X } from 'lucide-react';
-import { useCallback, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
-import { addAttachments, canSend, droppedPaths, fileName, imageExt, withAttachments } from '../../../shared/attachments';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { addAttachments, canSend, droppedPaths, fileName, imageExt, isImagePath, withAttachments } from '../../../shared/attachments';
 import type { SendKey } from '../../../shared/settings';
 import type { SavedPrompt } from '../../../shared/prompts';
 import { PromptsPanel } from './prompts-panel';
@@ -28,6 +28,8 @@ interface Props {
   prompts?: SavedPrompt[];
   onSavePrompt?: (text: string) => void;
   onDeletePrompt?: (id: string) => void;
+  /** Miniature d'une image jointe (data URL), ou null. */
+  thumbnail?: (path: string) => Promise<string | null>;
 }
 
 /** Vrai si cette touche doit envoyer le message. */
@@ -36,12 +38,32 @@ export function isSendKey(e: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'ctrlKey'>
   return sendKey === 'ctrl-enter' ? e.ctrlKey : !e.shiftKey && !e.ctrlKey;
 }
 
-export function AttachmentChips({ files, onRemove }: { files: string[]; onRemove: (path: string) => void }) {
+/** Miniature d'une image jointe, demandée à main ; rien tant qu'elle n'est pas prête (ou si ce n'est pas une image). */
+function Thumb({ path, thumbnail }: { path: string; thumbnail?: (path: string) => Promise<string | null> }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!thumbnail || !isImagePath(path)) return;
+    let stale = false;
+    thumbnail(path).then(
+      (url) => {
+        if (!stale) setSrc(url);
+      },
+      () => {},
+    );
+    return () => {
+      stale = true;
+    };
+  }, [path, thumbnail]);
+  return src ? <img className="attachment-thumb" src={src} alt="" /> : null;
+}
+
+export function AttachmentChips({ files, onRemove, thumbnail }: { files: string[]; onRemove: (path: string) => void; thumbnail?: (path: string) => Promise<string | null> }) {
   if (files.length === 0) return null;
   return (
     <div className="attachments">
       {files.map((path) => (
         <span key={path} className="attachment" title={path}>
+          <Thumb path={path} thumbnail={thumbnail} />
           {fileName(path)}
           <button onClick={() => onRemove(path)} aria-label={`Retirer ${fileName(path)}`} title="Retirer">
             <X size={12} aria-hidden />
@@ -52,7 +74,7 @@ export function AttachmentChips({ files, onRemove }: { files: string[]; onRemove
   );
 }
 
-export function Composer({ running, onSend, onStop, onPickFiles, pathForFile, onSavePasted, commands, suggestion, tools, sendKey = 'enter', prompts, onSavePrompt, onDeletePrompt }: Props) {
+export function Composer({ running, onSend, onStop, onPickFiles, pathForFile, onSavePasted, commands, suggestion, tools, sendKey = 'enter', prompts, onSavePrompt, onDeletePrompt, thumbnail }: Props) {
   const [panel, setPanel] = useState(false);
   const closePanel = useCallback(() => setPanel(false), []);
   const [text, setText] = useState('');
@@ -193,7 +215,7 @@ export function Composer({ running, onSend, onStop, onPickFiles, pathForFile, on
           />
         )}
         {matches.length > 0 && <SlashMenu items={matches} selected={selected} onPick={pick} />}
-        <AttachmentChips files={files} onRemove={(path) => setFiles((current) => current.filter((p) => p !== path))} />
+        <AttachmentChips files={files} thumbnail={thumbnail} onRemove={(path) => setFiles((current) => current.filter((p) => p !== path))} />
         <textarea
           ref={area}
           value={text}

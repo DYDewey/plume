@@ -60,3 +60,10 @@ describe('buildClaudeArgs', () => {
     expect(buildClaudeArgs({ sessionId: 'abc' })).not.toContain('--append-system-prompt');
   });
 });
+
+describe('modifier un message', () => {
+  it('copie qui s’arrête à un message : --resume-session-at après --fork-session', () => {
+    const args = buildClaudeArgs({ sessionId: 'n', forkFrom: 'o', resumeAt: 'u' });
+    expect(args.join(' ')).toContain('--resume o --fork-session --resume-session-at u --session-id n');
+  });
+});

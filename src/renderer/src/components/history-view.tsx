@@ -5,6 +5,7 @@ import { folderLabel } from '../ui-format';
 import { ChatView } from './chat-view';
 import { FavoriteButton } from './favorite-button';
 import { RenameButton, RenameField } from './rename-field';
+import { isChatFolder } from '../history-groups';
 
 interface Props {
   title: string;
@@ -24,11 +25,13 @@ interface Props {
   folderMissing?: boolean;
   /** Boutons en bout de barre (export). */
   actions?: ReactNode;
+  /** Modifier un message : la conversation repart de là, dans une copie. */
+  onEdit?: (index: number, text: string) => void;
 }
 
 /** Nom du dossier à côté du titre (chemin complet en infobulle), sauf s'il répète le titre. */
 export function TopbarFolder({ title, path }: { title: string; path: string }) {
-  const label = folderLabel(path);
+  const label = isChatFolder({ folder: '', path }) ? 'Discussion' : folderLabel(path);
   if (label === title) return null;
   return (
     <span className="topbar-folder" title={path}>
@@ -39,7 +42,7 @@ export function TopbarFolder({ title, path }: { title: string; path: string }) {
 
 // Ancienne session relue depuis ~/.claude/projects/ : même affichage que le chat.
 // Avec une zone de saisie, il suffit d'écrire pour la reprendre (l'original reste intact).
-export function HistoryView({ title, path, items, error, favorite = false, onToggleFavorite, onRename, focusIndex, composer, folderMissing = false, actions }: Props) {
+export function HistoryView({ title, path, items, error, favorite = false, onToggleFavorite, onRename, focusIndex, composer, folderMissing = false, actions, onEdit }: Props) {
   const [editing, setEditing] = useState(false);
   return (
     <main className="session">
@@ -69,7 +72,7 @@ export function HistoryView({ title, path, items, error, favorite = false, onTog
           <div className="msg msg-error"><TriangleAlert size={14} aria-hidden /> {error}</div>
         </div>
       ) : items ? (
-        <ChatView items={items} running={false} focusIndex={focusIndex} />
+        <ChatView items={items} running={false} focusIndex={focusIndex} onEdit={composer && !folderMissing ? onEdit : undefined} />
       ) : (
         <div className="chat">
           <div className="msg muted">Chargement…</div>

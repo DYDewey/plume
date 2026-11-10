@@ -143,6 +143,13 @@ export function sessionsReducer(state: ChatState, action: ChatAction): ChatState
       return fromBridge(state, action.sessionId, (s) => ({
         items: [...s.items, { kind: 'tool', name: action.name, input: action.input }],
       }));
+    case 'checkpoint':
+      // Le dernier élément (texte ou outil) est le message que claude vient d'enregistrer.
+      return update(state, action.sessionId, (s) => {
+        const last = s.items.at(-1);
+        if (last?.kind !== 'assistant' && last?.kind !== 'tool') return {};
+        return { items: [...s.items.slice(0, -1), { ...last, uuid: action.uuid }] };
+      });
     case 'turn-end':
       return fromBridge(state, action.sessionId, () => ({ status: 'idle' }));
     case 'error':
@@ -179,6 +186,18 @@ export function lastUserText(items: ChatItem[]): string | null {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i];
     if (item.kind === 'user') return item.text;
+  }
+  return null;
+}
+
+/**
+ * Point de reprise pour modifier le message `index` : uuid du dernier message de Claude avant lui.
+ * null : rien avant (1er message), on repart d'une conversation neuve.
+ */
+export function resumePoint(items: ChatItem[], index: number): string | null {
+  for (let i = index - 1; i >= 0; i--) {
+    const item = items[i];
+    if ((item.kind === 'assistant' || item.kind === 'tool') && item.uuid) return item.uuid;
   }
   return null;
 }

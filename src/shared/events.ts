@@ -2,6 +2,8 @@
 export type BridgeEvent =
   | { type: 'text-delta'; sessionId: string; text: string }
   | { type: 'tool-use'; sessionId: string; name: string; input: Record<string, unknown> }
+  /** Message de Claude terminé et enregistré (uuid de sa ligne dans le .jsonl). */
+  | { type: 'checkpoint'; sessionId: string; uuid: string }
   | { type: 'turn-end'; sessionId: string; result?: string; costUsd?: number }
   | { type: 'error'; sessionId: string; message: string }
   /** Commandes et skills disponibles (« / »), envoyés par claude au démarrage. */

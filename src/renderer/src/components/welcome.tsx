@@ -2,7 +2,7 @@ import { ChevronDown, Folder, MessageSquare, Plus, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { HistoryProject } from '../../../shared/history';
 import { displayTitle, sessionKey, type OrganizeData } from '../../../shared/organize';
-import { isTechnicalProject, shortWhen } from '../history-groups';
+import { isTechnicalProject, projectName, shortWhen } from '../history-groups';
 import { folderLabel } from '../ui-format';
 import { Logo } from './logo';
 
@@ -24,13 +24,14 @@ export function recentSessions(projects: HistoryProject[], organize: OrganizeDat
   return projects
     .filter((p) => !isTechnicalProject(p))
     .flatMap((p) => p.sessions.map((s) => ({ p, s })))
+    .filter(({ p, s }) => !organize.sessions[sessionKey(p.folder, s.id)]?.hidden)
     .sort((a, b) => b.s.lastAt - a.s.lastAt)
     .slice(0, count)
     .map(({ p, s }) => ({
       folder: p.folder,
       id: s.id,
       title: displayTitle(s, organize.sessions[sessionKey(p.folder, s.id)]),
-      meta: `${p.path ? folderLabel(p.path) : p.folder} · ${shortWhen(s.lastAt, now)}`,
+      meta: `${projectName(p)} · ${shortWhen(s.lastAt, now)}`,
     }));
 }
 

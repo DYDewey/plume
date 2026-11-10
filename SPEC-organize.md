@@ -48,3 +48,8 @@ Retrouver vite les conversations importantes : les mettre en **favoris** (étoil
 ## Questions ouvertes
 1. Section « Favoris » : liste plate (proposée) ou regroupée par projet ?
 2. Renommage : par le crayon au survol (proposé), ou aussi par double-clic sur le titre ?
+
+## Masquer (2026-11-10)
+- Bouton « Masquer » (au survol d'une ligne de l'historique) : `hidden: true` dans organize.json. Rien n'est supprimé.
+- Les masquées vont dans un groupe replié « Masquées (n) » en bas de l'historique (bouton « Réafficher »), et ne sont plus dans « Récentes » ni la recherche par titre.
+- Les conversations sans dossier (`%APPDATA%\mon-claude\discussions`) s'affichent « Discussion » au lieu du nom de dossier.

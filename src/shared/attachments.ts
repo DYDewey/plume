@@ -31,3 +31,8 @@ export function canSend(text: string, paths: string[]): boolean {
 export function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
+
+/** Fichier image dont on peut montrer une miniature (d'après l'extension). */
+export function isImagePath(path: string): boolean {
+  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(path);
+}

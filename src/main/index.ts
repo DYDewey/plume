@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu, nativeTheme, protocol, shell } from 'electron
 import { ARTIFACT_CSP } from '../shared/artifacts';
 import { createArtifactStore } from './artifact-store';
 import { join } from 'node:path';
-import { registerClaudeIpc, registerExportIpc, registerHandoffIpc, registerHistoryIpc, registerOrganizeIpc } from './ipc';
+import { registerClaudeIpc, registerExportIpc, registerHandoffIpc, registerHistoryIpc, registerOrganizeIpc, registerUpdateIpc } from './ipc';
 
 /** Hauteur de la barre de titre maison (doit égaler --titlebar-h dans styles.css). */
 const TITLEBAR_H = 40;
@@ -80,6 +80,7 @@ app.whenReady().then(() => {
     return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': ARTIFACT_CSP } });
   });
   registerExportIpc(artifacts);
+  registerUpdateIpc();
   const sessions = registerClaudeIpc();
   registerHistoryIpc();
   registerHandoffIpc();

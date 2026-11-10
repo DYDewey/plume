@@ -11,6 +11,10 @@ interface Props {
   onChange: (patch: Partial<Settings>) => void;
   onRouterChange: (enabled: boolean) => void;
   onClose: () => void;
+  /** Version installée (affichée dans Général). */
+  version?: string;
+  /** Cherche une nouvelle version ; le résultat s'affiche dans la ligne. */
+  onCheckUpdate?: () => Promise<string | null>;
 }
 
 const TABS: { id: Tab; label: string; icon: ReactNode }[] = [
@@ -103,8 +107,15 @@ function Row({ title, hint, children }: { title: string; hint?: ReactNode; child
   );
 }
 
-export function SettingsView({ settings, router, onChange, onRouterChange, onClose }: Props) {
+export function SettingsView({ settings, router, onChange, onRouterChange, onClose, version, onCheckUpdate }: Props) {
   const [tab, setTab] = useState<Tab>('general');
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+  async function checkNow() {
+    if (!onCheckUpdate) return;
+    setUpdateStatus('Recherche…');
+    const found = await onCheckUpdate().catch(() => null);
+    setUpdateStatus(found ? `Plume ${found} est disponible : bouton « Mettre à jour » en haut.` : 'Tu as la dernière version.');
+  }
 
   // Échap ferme, sauf si un menu ouvert l'a déjà utilisé.
   useEffect(() => {
@@ -142,6 +153,11 @@ export function SettingsView({ settings, router, onChange, onRouterChange, onClo
             </Row>
             <Row title="Notification de fin de réponse" hint="Une notification Windows quand Claude a fini et que tu es dans une autre fenêtre.">
               <Switch label="Notification de fin de réponse" checked={settings.notify} onChange={(notify) => onChange({ notify })} />
+            </Row>
+            <Row title={`Version ${version ?? ''}`.trim()} hint={updateStatus ?? 'Plume vérifie tout seul les nouvelles versions sur GitHub (au démarrage, puis toutes les 6 h).'}>
+              <button type="button" className="btn-secondary" onClick={() => void checkNow()} disabled={!onCheckUpdate || updateStatus === 'Recherche…'}>
+                Rechercher une mise à jour
+              </button>
             </Row>
           </>
         )}

@@ -25,6 +25,20 @@ export function createStreamParser(sessionId: string): StreamParser {
 interface LastMessage {
   model?: string;
   tokens?: number;
+  /** Taille max du contexte, connue après le 1er `result` : ensuite le % se met à jour pendant la réponse. */
+  max?: number;
+}
+
+const USAGE_KEYS = ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'output_tokens'];
+
+/** Tokens d'un appel au modèle = taille du contexte à ce moment. */
+function usageTokens(usage: Record<string, unknown> | undefined): number {
+  return USAGE_KEYS.map((key) => usage?.[key]).reduce<number>((sum, n) => sum + (typeof n === 'number' ? n : 0), 0);
+}
+
+/** Contexte en direct : seulement si la taille max est déjà connue (sinon il arrivera avec le `result`). */
+function liveContext(sessionId: string, last: LastMessage): BridgeEvent[] {
+  return last.max && last.tokens ? [{ type: 'context', sessionId, used: last.tokens, max: last.max }] : [];
 }
 
 function parseLine(line: string, sessionId: string, last: LastMessage): BridgeEvent[] {
@@ -38,7 +52,12 @@ function parseLine(line: string, sessionId: string, last: LastMessage): BridgeEv
   }
 
   if (msg.type === 'stream_event') {
-    const event = msg.event as { type?: string; delta?: { type?: string; text?: string } } | undefined;
+    const event = msg.event as { type?: string; delta?: { type?: string; text?: string }; message?: { usage?: Record<string, unknown> } } | undefined;
+    // Début de chaque appel au modèle (plusieurs par réponse quand Claude utilise des outils) : contexte à jour.
+    if (event?.type === 'message_start' && event.message?.usage) {
+      last.tokens = usageTokens(event.message.usage);
+      return liveContext(sessionId, last);
+    }
     if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta' && event.delta.text) {
       return [{ type: 'text-delta', sessionId, text: event.delta.text }];
     }
@@ -50,15 +69,16 @@ function parseLine(line: string, sessionId: string, last: LastMessage): BridgeEv
     const message = msg.message as { content?: unknown; model?: unknown; usage?: Record<string, unknown> } | undefined;
     if (message?.usage) {
       last.model = typeof message.model === 'string' ? message.model : undefined;
-      last.tokens = ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'output_tokens']
-        .map((key) => message.usage?.[key])
-        .reduce<number>((sum, n) => sum + (typeof n === 'number' ? n : 0), 0);
+      last.tokens = usageTokens(message.usage);
     }
     const content = message?.content;
-    if (!Array.isArray(content)) return [];
-    return content
+    if (!Array.isArray(content)) return liveContext(sessionId, last); // sans contenu : rien à reprendre
+    const tools: BridgeEvent[] = content
       .filter((block) => block?.type === 'tool_use' && typeof block.name === 'string')
       .map((block) => ({ type: 'tool-use', sessionId, name: block.name, input: block.input ?? {} }));
+    // uuid de la ligne enregistrée : point de reprise si l'utilisateur modifie un message plus tard.
+    const checkpoint: BridgeEvent[] = typeof msg.uuid === 'string' ? [{ type: 'checkpoint', sessionId, uuid: msg.uuid }] : [];
+    return [...tools, ...checkpoint, ...(message?.usage ? liveContext(sessionId, last) : [])];
   }
 
   if (msg.type === 'result') {
@@ -69,6 +89,7 @@ function parseLine(line: string, sessionId: string, last: LastMessage): BridgeEv
       return [{ type: 'error', sessionId, message: result ?? String(msg.subtype ?? 'erreur inconnue') }, end];
     }
     const max = contextWindow(msg.modelUsage, last.model);
+    if (max) last.max = max;
     if (max && last.tokens) return [{ type: 'context', sessionId, used: last.tokens, max }, end];
     return [end];
   }

@@ -7,6 +7,8 @@ export interface ClaudeArgsOptions {
   resume?: boolean;
   /** Continuer une ancienne session dans une copie : sessionId reçoit la suite, l'original reste intact. Ignoré si resume. */
   forkFrom?: string;
+  /** Avec forkFrom : la copie ne garde la conversation que jusqu'à ce message de Claude (uuid de la ligne). */
+  resumeAt?: string;
   /** Absent : « Par défaut », le réglage de Claude Code s'applique. */
   model?: ModelChoice;
   /** Instructions et fichiers du projet du dossier (cf. projects.ts). */
@@ -20,7 +22,7 @@ export function isSessionId(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 }
 
-export function buildClaudeArgs({ sessionId, resume, forkFrom, model, appendSystemPrompt, permissionMode = 'auto' }: ClaudeArgsOptions): string[] {
+export function buildClaudeArgs({ sessionId, resume, forkFrom, resumeAt, model, appendSystemPrompt, permissionMode = 'auto' }: ClaudeArgsOptions): string[] {
   return [
     '-p',
     '--input-format', 'stream-json',
@@ -39,7 +41,7 @@ export function buildClaudeArgs({ sessionId, resume, forkFrom, model, appendSyst
     ...(resume
       ? ['--resume', sessionId]
       : forkFrom
-        ? ['--resume', forkFrom, '--fork-session', '--session-id', sessionId]
+        ? ['--resume', forkFrom, '--fork-session', ...(resumeAt ? ['--resume-session-at', resumeAt] : []), '--session-id', sessionId]
         : ['--session-id', sessionId]),
   ];
 }

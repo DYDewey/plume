@@ -1,29 +1,33 @@
-# Plan : artefacts auto, panneau confortable, Auto plus malin, Ctrl+F et Réessayer (2026-11-10)
+# Plan : finitions + mises à jour automatiques + modifier un message + dépôt « plume » (2026-11-10)
 
 ## Graphe de dépendances
 ```
-A1 consigne artefacts (main, --append-system-prompt) ──> A2 ouverture auto en fin de réponse (renderer)
-B1 panneau redimensionnable ──> B2 barre latérale repliée à l'ouverture (indépendant de A)
-C  règles Auto (shared/auto-route.ts) ─── indépendant
-D1 Ctrl+F dans la conversation ─── indépendant
-D2 Réessayer (renvoie le dernier message) ─── indépendant
+P1 modèle sur l'accueil ───────────── indépendant
+P2 actions sous les réponses ──┐
+G3 modifier un message ────────┴─> même rangée d'actions (Copier / Réessayer / Modifier)
+P3 miniatures ─────────────────────── main (nativeImage) + CSP img-src data:
+P4 masquer + « Discussion » ───────── organize.json (champ hidden)
+G4 renommer le dépôt ──> G1 mises à jour (l'adresse des Releases utilise le nouveau nom)
 ```
 
 ## Décisions
-- **Consigne artefacts** : texte fixe ajouté à `--append-system-prompt` (avec les instructions de projet), seulement si le réglage « Artefacts automatiques » est actif (défaut : oui). Elle dit à Claude d'écrire une page HTML autonome, un SVG ou un Mermaid dans un bloc de code quand un visuel aide vraiment ; jamais pour du code à mettre dans un projet. Aucun appel en plus : c'est juste du texte dans la session.
-- **Ouverture auto** : à la fin d'une réponse (passage running → idle) de la session affichée, si la réponse contient un artefact, il s'ouvre (le dernier). Pas pendant le flux : code incomplet.
-- **Panneau** : poignée à gauche, glisser = largeur (320 px → 75 % de la fenêtre), retenue dans localStorage. À l'ouverture, la barre latérale se replie ; à la fermeture, elle revient si c'est le panneau qui l'avait repliée.
-- **Auto** (5 décisions dans le journal, 2 erreurs) :
-  - « Vas-y prépare tout… » : message de suite, le juge le voit sans contexte. Règle : un message de suite (« vas-y », « continue », « oui », « fais-le »…) garde le modèle en cours.
-  - « J'aimerais qu'on travaille ensemble sur un projet » → Haiku : trop faible. Règle sûre Sonnet minimum pour un début de projet ou de travail.
-- **Ctrl+F** : barre de recherche en haut de la conversation (ouverte ou relue), surligne les messages qui contiennent le texte, Entrée / Maj+Entrée = suivant / précédent, Échap ferme. Recherche dans les données (ChatItem), pas dans le DOM.
-- **Réessayer** : bouton sous la dernière réponse de Claude (session ouverte, au repos) : renvoie le dernier message de l'utilisateur tel quel.
+- **P1** : le menu du modèle (même composant) dans la barre de saisie de l'accueil ; il règle le « dernier modèle » utilisé par la prochaine conversation.
+- **P2** : sous chaque réponse de Claude, au survol : Copier (texte Markdown de la réponse). Sous la dernière : Réessayer (déjà là) toujours visible.
+- **P3** : main fait une miniature (`nativeImage`, 96 px) en data URL ; CSP de l'app : `img-src 'self' data:`. Fichier non image : icône comme avant.
+- **P4** : `hidden: true` dans organize.json (rien sur le disque de Claude Code n'est touché). Bouton « Masquer » sur chaque ligne de l'historique ; les masquées vont dans un groupe repliable « Masquées (n) » en bas, avec « Réafficher ». Les conversations du dossier `discussions` sont marquées « Discussion » au lieu du nom de dossier.
+- **G3** : option cachée du CLI `--resume-session-at <uuid>` (reconnue par claude 2.1.321) : reprise d'une copie de la conversation jusqu'au dernier message de Claude avant le message modifié, puis envoi du nouveau texte. Les `uuid` viennent des lignes `assistant` (flux en direct et .jsonl). Premier message modifié : conversation neuve dans le même dossier. L'ancienne session reste intacte sur le disque (historique) ; dans l'app, la copie remplace l'onglet. À vérifier une fois en vrai (petit test Haiku).
+- **G4** : `gh repo rename plume` (GitHub redirige l'ancien lien) ; `publier.sh` et README pointent vers le nouveau nom.
+- **G1** : sans dépendance. Main interroge `api.github.com/repos/DYDewey/plume/releases/latest` au démarrage puis toutes les 6 h ; version plus récente (semver) avec un `Plume-Setup-x.y.z.exe` → bandeau « Plume x.y.z est disponible ». « Mettre à jour » : téléchargement dans le dossier temporaire, vérification sha256 (champ `digest` de GitHub, obligatoire), puis un petit script lance l'installeur en silencieux, attend la fin et relance Plume ; l'app se ferme. Jamais pendant une réponse en cours (bouton désactivé). Version passée à 0.2.0. Publier une Release reste une action manuelle (`gh release create`), avec accord.
 
 ## Tâches
-- T1 Consigne artefacts + réglage. Accept : `artifactInstructions` testée ; args contiennent la consigne seulement si réglage actif.
-- T2 Ouverture auto. Accept : `lastArtifact(items)` testée.
-- T3 Panneau redimensionnable + repli. Accept : `clampWidth` testée ; vérif CDP.
-- T4 Règles Auto. Accept : tests sur les 5 messages du journal + `isContinuation`.
-- T5 Ctrl+F. Accept : `findMatches` testée ; vérif CDP.
-- T6 Réessayer. Accept : `lastUserText` testée, bouton rendu seulement au repos.
-- T7 Tests, typecheck, lint, build, installation, CDP, commit, publication (avec accord).
+- T1 P1 modèle sur l'accueil
+- T2 P2 Copier sous les réponses
+- T3 P3 miniatures (IPC `files:thumb`)
+- T4 P4 masquer / réafficher + étiquette Discussion
+- T5 G3 modifier un message (uuid dans stream-parser et history-parser, args, flux)
+- T6 G4 renommer le dépôt
+- T7 G1 mises à jour (`shared/update.ts` pur et testé : comparaison de versions, choix de l'asset ; `main/updater.ts`)
+- T8 vérifs, installation, commit, publication (avec gardien-push)
+
+## Points de contrôle
+Tests + typecheck + lint après T4, T5, T7 ; captures CDP ; test réel de G3 avec Haiku (quelques messages courts).

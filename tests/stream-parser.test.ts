@@ -10,9 +10,10 @@ describe('createStreamParser', () => {
     const parser = createStreamParser('s1');
     const events = parser.push(fixture);
 
-    expect(events.map((e) => e.type)).toEqual(['commands', 'model', 'text-delta', 'rate-limits', 'context', 'turn-end']);
+    expect(events.map((e) => e.type)).toEqual(['commands', 'model', 'text-delta', 'checkpoint', 'rate-limits', 'context', 'turn-end']);
     expect(events[2]).toEqual({ type: 'text-delta', sessionId: 's1', text: 'bonjour' });
-    expect(events[5]).toMatchObject({ type: 'turn-end', sessionId: 's1', result: 'bonjour' });
+    expect(events[3]).toMatchObject({ type: 'checkpoint', sessionId: 's1' });
+    expect(events[6]).toMatchObject({ type: 'turn-end', sessionId: 's1', result: 'bonjour' });
   });
 
   it('rate_limit_event donne les jauges 5 h et 7 jours', () => {
@@ -86,7 +87,7 @@ describe('createStreamParser', () => {
   it('gère les fins de ligne Windows', () => {
     const parser = createStreamParser('s1');
     const crlf = fixture.split('\n').join('\r\n');
-    expect(parser.push(crlf).map((e) => e.type)).toEqual(['commands', 'model', 'text-delta', 'rate-limits', 'context', 'turn-end']);
+    expect(parser.push(crlf).map((e) => e.type)).toEqual(['commands', 'model', 'text-delta', 'checkpoint', 'rate-limits', 'context', 'turn-end']);
   });
 
   it('émet une erreur puis turn-end quand le résultat est en échec', () => {
@@ -96,5 +97,22 @@ describe('createStreamParser', () => {
       { type: 'error', sessionId: 's1', message: 'boom' },
       { type: 'turn-end', sessionId: 's1', result: 'boom' },
     ]);
+  });
+});
+
+describe('contexte en direct', () => {
+  it('après une 1re réponse, chaque appel au modèle met le % à jour sans attendre la fin', () => {
+    const parser = createStreamParser('s1');
+    parser.push(fixture); // 1re réponse : la taille max (1 000 000) est apprise au result
+    const start = JSON.stringify({
+      type: 'stream_event',
+      event: { type: 'message_start', message: { usage: { input_tokens: 10, cache_read_input_tokens: 40000, cache_creation_input_tokens: 500, output_tokens: 1 } } },
+    });
+    expect(parser.push(start + '\n')).toEqual([{ type: 'context', sessionId: 's1', used: 40511, max: 1000000 }]);
+  });
+
+  it('avant toute réponse : pas de % (taille max inconnue)', () => {
+    const start = JSON.stringify({ type: 'stream_event', event: { type: 'message_start', message: { usage: { input_tokens: 10 } } } });
+    expect(createStreamParser('s1').push(start + '\n')).toEqual([]);
   });
 });

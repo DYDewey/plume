@@ -29,3 +29,9 @@ Reprendre une ancienne conversation là où elle s'est arrêtée, depuis la vue 
 ## Hors périmètre
 - Continuer dans le même fichier (`--resume` simple).
 - Continuer une session dont le dossier n'existe plus.
+
+## Modifier un message (2026-11-10)
+- Au survol d'un de tes messages (conversation ouverte au repos, ou ancienne conversation dont le dossier existe) : « Modifier ». Zone d'édition en place ; Entrée envoie, Échap annule.
+- La conversation repart d'une copie arrêtée à la dernière réponse de Claude avant ce message : `--resume <id> --fork-session --resume-session-at <uuid> --session-id <nouveau>` (option cachée du CLI, vérifiée avec claude 2.1.321 : la copie oublie bien la suite). Puis le nouveau texte est envoyé.
+- `uuid` : celui de la ligne `assistant` du .jsonl, identique dans le flux en direct (vérifié) ; gardé sur les éléments `assistant` / `tool` (`history-parser`, événement `checkpoint` du `stream-parser`).
+- Premier message modifié : conversation neuve dans le même dossier. Conversation ouverte : la copie remplace l'onglet ; l'original reste intact sur le disque (historique).

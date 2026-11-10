@@ -20,8 +20,8 @@ App de bureau Windows gratuite autour du CLI [Claude Code](https://docs.claude.c
 ## Installation
 
 ```bash
-git clone https://github.com/DYDewey/mon-claude.git
-cd mon-claude
+git clone https://github.com/DYDewey/plume.git
+cd plume
 npm install
 npm run dist
 ```

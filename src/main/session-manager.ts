@@ -38,7 +38,7 @@ export class SessionManager {
   /** Sessions dont on a demandé l'interruption : leur prochain `result` est en erreur, c'est normal. */
   private interrupting = new Set<string>();
   /** Session d'origine des copies (« Continuer ») : tant que rien n'est envoyé, un restart doit refaire la copie. */
-  private forks = new Map<string, string>();
+  private forks = new Map<string, { from: string; at?: string }>();
   /** Demandes de permission en attente : session → requestId → demande. */
   private permissions = new Map<string, Map<string, PendingPermission>>();
 
@@ -48,10 +48,11 @@ export class SessionManager {
   ) {}
 
   /** Lance une session dans `cwd` et renvoie son identifiant. */
-  start(cwd: string, resumeId?: string, model?: ModelChoice, forkFrom?: string): string {
+  // `resumeAt` : la copie s'arrête à ce message de Claude (uuid) ; la suite de l'original est ignorée (« Modifier »).
+  start(cwd: string, resumeId?: string, model?: ModelChoice, forkFrom?: string, resumeAt?: string): string {
     const sessionId = resumeId ?? randomUUID();
     if (resumeId) this.withConversation.add(sessionId);
-    if (forkFrom) this.forks.set(sessionId, forkFrom);
+    if (forkFrom) this.forks.set(sessionId, { from: forkFrom, at: resumeAt });
     this.launch(cwd, sessionId, model);
     return sessionId;
   }
@@ -67,7 +68,7 @@ export class SessionManager {
     const args = [
       ...prefixArgs,
       ...buildClaudeArgs({
-        sessionId, resume, forkFrom: this.forks.get(sessionId), model, appendSystemPrompt,
+        sessionId, resume, forkFrom: this.forks.get(sessionId)?.from, resumeAt: this.forks.get(sessionId)?.at, model, appendSystemPrompt,
         permissionMode: this.options.permissionMode?.(),
       }),
     ];

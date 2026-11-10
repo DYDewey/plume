@@ -7,7 +7,8 @@ const lines = readFileSync(join(__dirname, 'fixtures/history/sample.jsonl'), 'ut
 
 describe('parseSession', () => {
   it('garde messages et outils, ignore le reste et les lignes cassées', () => {
-    expect(parseSession(lines).items).toEqual([
+    // toEqual ignore les champs undefined : uuid est vérifié à part.
+    expect(parseSession(lines).items.map((i) => ({ ...i, uuid: undefined }))).toEqual([
       { kind: 'user', text: "Explique-moi les promesses en JavaScript, avec un exemple simple s'il te plaît" },
       { kind: 'assistant', text: 'Une promesse représente une valeur future.' },
       { kind: 'tool', name: 'Read', input: { file_path: 'C:\\Users\\moi\\projet\\a.js' } },
@@ -49,5 +50,12 @@ describe('parseSession', () => {
 
   it('titre : « Sans titre » si aucun message', () => {
     expect(parseSession(['{"type":"mode"}', '']).title).toBe('Sans titre');
+  });
+});
+
+describe('points de reprise', () => {
+  it('chaque message de Claude garde l’uuid de sa ligne', () => {
+    const items = parseSession(lines).items.filter((i) => i.kind === 'assistant' || i.kind === 'tool');
+    expect(items.every((i) => 'uuid' in i && typeof i.uuid === 'string')).toBe(true);
   });
 });

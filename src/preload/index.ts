@@ -1,9 +1,9 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
-import { IPC, type ClaudeApi } from '../shared/api';
+import { IPC, type ClaudeApi, type UpdateEvent } from '../shared/api';
 import type { BridgeEvent } from '../shared/events';
 
 const api: ClaudeApi = {
-  startSession: (cwd, opts) => ipcRenderer.invoke(IPC.start, cwd, opts?.resumeId, opts?.model, opts?.forkFrom),
+  startSession: (cwd, opts) => ipcRenderer.invoke(IPC.start, cwd, opts?.resumeId, opts?.model, opts?.forkFrom, opts?.resumeAt),
   sendMessage: (sessionId, text) => ipcRenderer.send(IPC.send, sessionId, text),
   pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),
   pickFiles: () => ipcRenderer.invoke(IPC.pickFiles),
@@ -41,6 +41,15 @@ const api: ClaudeApi = {
   exportPdf: (defaultName) => ipcRenderer.invoke(IPC.exportPdf, defaultName),
   showArtifact: (html) => ipcRenderer.invoke(IPC.showArtifact, html),
   chatFolder: () => ipcRenderer.invoke(IPC.chatFolder),
+  thumbnail: (path) => ipcRenderer.invoke(IPC.thumbnail, path),
+  appVersion: () => ipcRenderer.invoke(IPC.appVersion),
+  checkUpdate: () => ipcRenderer.invoke(IPC.updateCheck),
+  installUpdate: () => ipcRenderer.invoke(IPC.updateInstall),
+  onUpdate: (cb) => {
+    const listener = (_e: IpcRendererEvent, event: UpdateEvent) => cb(event);
+    ipcRenderer.on(IPC.updateEvent, listener);
+    return () => ipcRenderer.removeListener(IPC.updateEvent, listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('claude', api);

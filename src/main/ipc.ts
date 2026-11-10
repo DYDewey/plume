@@ -1,14 +1,16 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, Notification } from 'electron';
 import { notificationBody } from '../shared/notify';
 import { ARTIFACT_INSTRUCTIONS, joinPrompts } from '../shared/artifacts';
 import { cleanFileName } from '../shared/export';
 import { loadSettings, saveSettings } from './settings-store';
-import { IPC } from '../shared/api';
+import { IPC, type UpdateEvent } from '../shared/api';
+import type { UpdateInfo } from '../shared/update';
+import { checkUpdate, downloadUpdate, runInstaller } from './updater';
 import { isPermissionDecision } from '../shared/events';
 import { isModelChoice } from '../shared/model';
 import { decideRoute, isContinuation, ruleRoute } from '../shared/auto-route';
@@ -19,6 +21,7 @@ import { validQuery } from '../shared/search';
 import { emptyOrganize, parseOrganize, type OrganizeData } from '../shared/organize';
 import { promptForCwd } from '../shared/projects';
 import { savePastedImage } from './attachment-store';
+import { isImagePath } from '../shared/attachments';
 import { saveHandoff } from './handoff-store';
 import { createHistoryReader } from './history-reader';
 import { loadOrganize, saveOrganize } from './organize-store';
@@ -100,14 +103,15 @@ export function registerClaudeIpc(): SessionManager {
     },
   );
 
-  ipcMain.handle(IPC.start, async (_e, cwd: unknown, resumeId: unknown, model: unknown, forkFrom: unknown) => {
+  ipcMain.handle(IPC.start, async (_e, cwd: unknown, resumeId: unknown, model: unknown, forkFrom: unknown, resumeAt: unknown) => {
     // Le renderer n'est pas digne de confiance : on vérifie ce qu'il envoie.
     if (typeof cwd !== 'string' || !existsSync(cwd)) throw new Error(`Dossier invalide : ${String(cwd)}`);
     if (resumeId !== undefined && typeof resumeId !== 'string') throw new Error('resumeId invalide');
     if (model !== undefined && !isModelChoice(model)) throw new Error('Modèle invalide');
     if (forkFrom !== undefined && !isSessionId(forkFrom)) throw new Error('Session à continuer invalide');
+    if (resumeAt !== undefined && (forkFrom === undefined || !isSessionId(resumeAt))) throw new Error('Message de reprise invalide');
     await prepareLauncher();
-    return manager.start(cwd, resumeId, model, forkFrom);
+    return manager.start(cwd, resumeId, model, forkFrom, resumeAt);
   });
 
   ipcMain.handle(IPC.routerGet, () => routerEnabled);
@@ -150,6 +154,13 @@ export function registerClaudeIpc(): SessionManager {
     const dir = join(userData, 'discussions');
     mkdirSync(dir, { recursive: true });
     return dir;
+  });
+
+  // Miniature d'une image jointe : seulement les formats image courants, jamais au-delà de 30 Mo.
+  ipcMain.handle(IPC.thumbnail, (_e, path: unknown) => {
+    if (typeof path !== 'string' || !isImagePath(path) || !existsSync(path) || statSync(path).size > 30_000_000) return null;
+    const img = nativeImage.createFromPath(path);
+    return img.isEmpty() ? null : img.resize({ height: 96, quality: 'good' }).toDataURL();
   });
 
   ipcMain.handle(IPC.pickFolder, async (e) => {
@@ -286,4 +297,29 @@ export function registerExportIpc(artifacts: { put(html: string): string }): voi
     if (typeof html !== 'string' || html.length > 5_000_000) throw new Error('Artefact invalide');
     return artifacts.put(html);
   });
+}
+
+/** Mises à jour : vérification au démarrage puis toutes les 6 h (app installée seulement), installation à la demande. */
+export function registerUpdateIpc(): void {
+  let latest: UpdateInfo | null = null;
+  const broadcast = (event: UpdateEvent) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IPC.updateEvent, event);
+  };
+  const check = async () => {
+    latest = await checkUpdate(app.getVersion());
+    if (latest) broadcast({ type: 'available', info: latest });
+    return latest;
+  };
+  ipcMain.handle(IPC.appVersion, () => app.getVersion());
+  ipcMain.handle(IPC.updateCheck, () => check());
+  ipcMain.handle(IPC.updateInstall, async () => {
+    // Le renderer ne choisit rien : on installe seulement ce que main a trouvé et vérifié.
+    if (!latest) throw new Error('Aucune mise à jour trouvée');
+    const installer = await downloadUpdate(latest, (ratio) => broadcast({ type: 'progress', ratio }));
+    runInstaller(installer, process.execPath);
+    app.quit();
+  });
+  if (!app.isPackaged) return; // en dev : vérification manuelle seulement
+  setTimeout(() => void check(), 15_000);
+  setInterval(() => void check(), 6 * 60 * 60 * 1000);
 }
